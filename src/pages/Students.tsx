@@ -8,7 +8,7 @@ import {
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2 } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp } from 'lucide-react';
 
 type Tab = 'roster' | 'weekly';
 
@@ -41,6 +41,15 @@ export default function Students() {
   const [nameInput, setNameInput] = useState('');
   const [classInput, setClassInput] = useState('');
   const [adding, setAdding] = useState(false);
+  const [collapsedClasses, setCollapsedClasses] = useState<Set<string>>(new Set());
+
+  const toggleClass = (cls: string) => {
+    setCollapsedClasses(prev => {
+      const next = new Set(prev);
+      next.has(cls) ? next.delete(cls) : next.add(cls);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
@@ -172,29 +181,39 @@ export default function Students() {
               <p className="text-slate-400 text-sm">등록된 학생이 없습니다</p>
             </div>
           ) : (
-            // 반별 그룹핑
-            <div className="space-y-4">
-              {[...new Set(students.map(s => s.className))].sort().map(cls => (
-                <div key={cls} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100">
-                    <p className="text-sm font-semibold text-slate-700">{cls || '반 미지정'}</p>
+            // 반별 그룹핑 (접기/펼치기)
+            <div className="space-y-3">
+              {[...new Set(students.map(s => s.className))].sort().map(cls => {
+                const inClass = students.filter(s => s.className === cls);
+                const collapsed = collapsedClasses.has(cls);
+                return (
+                  <div key={cls} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <button
+                      onClick={() => toggleClass(cls)}
+                      className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-700">{cls || '반 미지정'}</p>
+                        <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{inClass.length}명</span>
+                      </div>
+                      {collapsed ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronUp size={16} className="text-slate-400" />}
+                    </button>
+                    {!collapsed && (
+                      <div className="divide-y divide-slate-100">
+                        {inClass.map(s => (
+                          <div key={s.id} className="flex items-center justify-between px-5 py-3">
+                            <p className="font-medium text-slate-800 text-sm">{s.name}</p>
+                            <button onClick={() => handleDelete(s.id, s.name)}
+                              className="p-1.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors">
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="divide-y divide-slate-100">
-                    {students.filter(s => s.className === cls).map(s => (
-                <div key={s.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <p className="font-medium text-slate-800">{s.name}</p>
-                    <p className="text-xs text-slate-400">등록일: {new Date(s.createdAt).toLocaleDateString('ko-KR')}</p>
-                  </div>
-                  <button onClick={() => handleDelete(s.id, s.name)}
-                    className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

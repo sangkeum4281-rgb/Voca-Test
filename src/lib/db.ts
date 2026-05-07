@@ -334,6 +334,25 @@ export async function deleteAttendance(studentName: string, date: string): Promi
   if (error) throw error;
 }
 
+export async function fetchAttendanceByMonth(year: number, month: number): Promise<AttendanceRecord[]> {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .gte('date', start)
+    .lte('date', end);
+  if (error) throw error;
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    studentName: row.student_name as string,
+    date: row.date as string,
+    status: row.status as AttendanceRecord['status'],
+    note: (row.note as string) ?? '',
+  }));
+}
+
 // ── Q&A ──────────────────────────────────────────────────
 
 export interface QnaItem {

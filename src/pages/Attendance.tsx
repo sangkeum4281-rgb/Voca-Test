@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
-  fetchStudents, fetchAttendanceByDate, fetchAttendanceByStudent,
-  upsertAttendance, deleteAttendance,
+  fetchStudents, fetchAttendanceByDate,
+  fetchAttendanceByMonth, upsertAttendance, deleteAttendance,
   type Student, type AttendanceRecord,
 } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader, ChevronLeft, ChevronRight, CheckCircle, Clock, XCircle, RotateCcw } from 'lucide-react';
+import { Loader, ChevronLeft, ChevronRight, RotateCcw, CalendarDays, CalendarCheck } from 'lucide-react';
 
 const STATUS_CONFIG = {
-  present: { label: '출석', color: 'bg-green-100 text-green-700 border-green-300', icon: CheckCircle },
-  late:    { label: '지각', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: Clock },
-  absent:  { label: '결석', color: 'bg-red-100 text-red-700 border-red-300', icon: XCircle },
+  present: { label: '출석', short: '출', color: 'bg-green-100 text-green-700 border-green-300', cell: 'bg-green-100 text-green-700' },
+  late:    { label: '지각', short: '지', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', cell: 'bg-yellow-100 text-yellow-700' },
+  absent:  { label: '결석', short: '결', color: 'bg-red-100 text-red-700 border-red-300', cell: 'bg-red-100 text-red-700' },
 } as const;
 
-function toDateStr(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
+type TeacherTab = 'daily' | 'monthly';
+
+function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
 
 const STUDENT_NAME_KEY = 'vocab-student-name';
 
@@ -24,20 +24,32 @@ export default function Attendance() {
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
+  const [teacherTab, setTeacherTab] = useState<TeacherTab>('daily');
+
+  // 일별
   const [date, setDate] = useState(toDateStr(new Date()));
   const [records, setRecords] = useState<Record<string, AttendanceRecord['status'] | null>>({});
   const [saving, setSaving] = useState<string | null>(null);
+
+  // 월별
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [monthlyRecords, setMonthlyRecords] = useState<AttendanceRecord[]>([]);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
 
   // 학생용
   const [myName, setMyName] = useState(() => localStorage.getItem(STUDENT_NAME_KEY) ?? '');
   const [myRecords, setMyRecords] = useState<AttendanceRecord[]>([]);
   const [myLoading, setMyLoading] = useState(false);
+  const [myYear, setMyYear] = useState(now.getFullYear());
+  const [myMonth, setMyMonth] = useState(now.getMonth() + 1);
 
   useEffect(() => {
     if (isTeacher) {
       fetchStudents().then(s => {
         setStudents(s);
-        const classes = [...new Set(s.map(x => x.className).filter(Boolean))];
+        const classes = [...new Set(s.map(x => x.className).filter(Boolean))].sort();
         if (classes.length > 0) setSelectedClass(classes[0]);
         setLoading(false);
       });
@@ -47,21 +59,32 @@ export default function Attendance() {
   }, [isTeacher]);
 
   useEffect(() => {
-    if (!isTeacher || !selectedClass) return;
-    loadAttendance();
-  }, [date, selectedClass]);
+    if (!isTeacher || !selectedClass || teacherTab !== 'daily') return;
+    loadDaily();
+  }, [date, selectedClass, teacherTab]);
 
-  const loadAttendance = async () => {
+  useEffect(() => {
+    if (!isTeacher || teacherTab !== 'monthly') return;
+    loadMonthly();
+  }, [year, month, teacherTab]);
+
+  const loadDaily = async () => {
     const data = await fetchAttendanceByDate(date);
     const map: Record<string, AttendanceRecord['status'] | null> = {};
     for (const r of data) map[r.studentName] = r.status;
     setRecords(map);
   };
 
+  const loadMonthly = async () => {
+    setMonthlyLoading(true);
+    const data = await fetchAttendanceByMonth(year, month);
+    setMonthlyRecords(data);
+    setMonthlyLoading(false);
+  };
+
   const mark = async (studentName: string, status: AttendanceRecord['status']) => {
     setSaving(studentName);
-    const cur = records[studentName];
-    if (cur === status) {
+    if (records[studentName] === status) {
       await deleteAttendance(studentName, date);
       setRecords(prev => ({ ...prev, [studentName]: null }));
     } else {
@@ -71,12 +94,12 @@ export default function Attendance() {
     setSaving(null);
   };
 
-  const loadMyRecords = async () => {
+  const loadMyRecords = async (y = myYear, m = myMonth) => {
     if (!myName.trim()) return;
     localStorage.setItem(STUDENT_NAME_KEY, myName.trim());
     setMyLoading(true);
-    const data = await fetchAttendanceByStudent(myName.trim());
-    setMyRecords(data);
+    const data = await fetchAttendanceByMonth(y, m);
+    setMyRecords(data.filter(r => r.studentName === myName.trim()));
     setMyLoading(false);
   };
 
@@ -86,17 +109,37 @@ export default function Attendance() {
     setDate(toDateStr(d));
   };
 
+  const shiftMonth = (delta: number, forStudent = false) => {
+    let y = forStudent ? myYear : year;
+    let m = (forStudent ? myMonth : month) + delta;
+    if (m > 12) { m = 1; y++; }
+    if (m < 1)  { m = 12; y--; }
+    if (forStudent) { setMyYear(y); setMyMonth(m); loadMyRecords(y, m); }
+    else { setYear(y); setMonth(m); }
+  };
+
   const classes = [...new Set(students.map(s => s.className).filter(Boolean))].sort();
   const filtered = students.filter(s => s.className === selectedClass);
-  const presentCount = filtered.filter(s => records[s.name] === 'present').length;
-  const lateCount = filtered.filter(s => records[s.name] === 'late').length;
-  const absentCount = filtered.filter(s => records[s.name] === 'absent').length;
-  const unchecked = filtered.filter(s => !records[s.name]).length;
+
+  // 월별 테이블 계산
+  const lastDay = new Date(year, month, 0).getDate();
+  const days = Array.from({ length: lastDay }, (_, i) => i + 1);
+  const monthlyByStudent: Record<string, Record<number, AttendanceRecord['status']>> = {};
+  for (const r of monthlyRecords) {
+    const day = parseInt(r.date.slice(8, 10));
+    if (!monthlyByStudent[r.studentName]) monthlyByStudent[r.studentName] = {};
+    monthlyByStudent[r.studentName][day] = r.status;
+  }
 
   if (loading) return <div className="flex justify-center py-24"><Loader size={28} className="animate-spin text-indigo-400" /></div>;
 
   // ── 학생 뷰 ──
   if (!isTeacher) {
+    const lastDayMy = new Date(myYear, myMonth, 0).getDate();
+    const myDays = Array.from({ length: lastDayMy }, (_, i) => i + 1);
+    const myMap: Record<number, AttendanceRecord['status']> = {};
+    for (const r of myRecords) myMap[parseInt(r.date.slice(8, 10))] = r.status;
+
     return (
       <div className="space-y-5 max-w-lg mx-auto">
         <h1 className="text-2xl font-bold text-slate-800">내 출결 확인</h1>
@@ -108,7 +151,7 @@ export default function Attendance() {
             onKeyDown={e => e.key === 'Enter' && loadMyRecords()}
             placeholder="이름 입력"
           />
-          <button onClick={loadMyRecords} disabled={!myName.trim() || myLoading}
+          <button onClick={() => loadMyRecords()} disabled={!myName.trim() || myLoading}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-40">
             {myLoading ? <Loader size={14} className="animate-spin" /> : '조회'}
           </button>
@@ -116,6 +159,14 @@ export default function Attendance() {
 
         {myRecords.length > 0 && (
           <>
+            {/* 월 이동 */}
+            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3">
+              <button onClick={() => shiftMonth(-1, true)} className="p-1.5 rounded hover:bg-slate-100"><ChevronLeft size={16} /></button>
+              <p className="font-semibold text-slate-700">{myYear}년 {myMonth}월</p>
+              <button onClick={() => shiftMonth(1, true)} className="p-1.5 rounded hover:bg-slate-100"><ChevronRight size={16} /></button>
+            </div>
+
+            {/* 요약 */}
             <div className="grid grid-cols-3 gap-3">
               {(['present','late','absent'] as const).map(s => {
                 const count = myRecords.filter(r => r.status === s).length;
@@ -128,19 +179,30 @@ export default function Attendance() {
                 );
               })}
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-              {myRecords.map(r => {
-                const cfg = STATUS_CONFIG[r.status];
-                const Icon = cfg.icon;
-                return (
-                  <div key={r.id} className="flex items-center justify-between px-4 py-3">
-                    <p className="text-sm text-slate-700">{new Date(r.date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' })}</p>
-                    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${cfg.color}`}>
-                      <Icon size={12} /> {cfg.label}
-                    </span>
-                  </div>
-                );
-              })}
+
+            {/* 월별 달력 */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                {['일','월','화','수','목','금','토'].map(d => (
+                  <p key={d} className="text-xs text-slate-400 font-medium">{d}</p>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {/* 첫째 날 요일 맞춤 */}
+                {Array.from({ length: new Date(myYear, myMonth - 1, 1).getDay() }, (_, i) => (
+                  <div key={`empty-${i}`} />
+                ))}
+                {myDays.map(day => {
+                  const status = myMap[day];
+                  const cfg = status ? STATUS_CONFIG[status] : null;
+                  return (
+                    <div key={day} className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs ${cfg ? cfg.cell : 'bg-slate-50 text-slate-400'}`}>
+                      <p className="font-medium">{day}</p>
+                      {cfg && <p className="text-[10px] leading-none">{cfg.short}</p>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </>
         )}
@@ -149,84 +211,194 @@ export default function Attendance() {
   }
 
   // ── 선생님 뷰 ──
+  const presentCount = filtered.filter(s => records[s.name] === 'present').length;
+  const lateCount    = filtered.filter(s => records[s.name] === 'late').length;
+  const absentCount  = filtered.filter(s => records[s.name] === 'absent').length;
+  const unchecked    = filtered.filter(s => !records[s.name]).length;
+
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold text-slate-800">출결 관리</h1>
 
-      <div className="flex flex-wrap gap-3 items-center">
-        {/* 반 선택 */}
-        <div className="flex flex-wrap gap-2">
-          {classes.map(c => (
-            <button key={c} onClick={() => setSelectedClass(c)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-              }`}>
-              {c}
-            </button>
-          ))}
-        </div>
-
-        {/* 날짜 */}
-        <div className="flex items-center gap-1 ml-auto">
-          <button onClick={() => shiftDate(-1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronLeft size={16} /></button>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          <button onClick={() => shiftDate(1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronRight size={16} /></button>
-          <button onClick={() => setDate(toDateStr(new Date()))} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400">
-            <RotateCcw size={14} />
-          </button>
-        </div>
+      {/* 탭 */}
+      <div className="flex border-b border-slate-200">
+        <button onClick={() => setTeacherTab('daily')}
+          className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            teacherTab === 'daily' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <CalendarCheck size={15} /> 일별 출결
+        </button>
+        <button onClick={() => setTeacherTab('monthly')}
+          className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            teacherTab === 'monthly' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <CalendarDays size={15} /> 월별 현황
+        </button>
       </div>
 
-      {/* 요약 */}
-      {filtered.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
-          {[
-            { label: '출석', value: presentCount, color: 'text-green-600 bg-green-50 border-green-200' },
-            { label: '지각', value: lateCount, color: 'text-yellow-600 bg-yellow-50 border-yellow-200' },
-            { label: '결석', value: absentCount, color: 'text-red-500 bg-red-50 border-red-200' },
-            { label: '미체크', value: unchecked, color: 'text-slate-500 bg-slate-50 border-slate-200' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className={`rounded-xl border p-3 text-center ${color}`}>
-              <p className="text-2xl font-bold">{value}</p>
-              <p className="text-xs mt-0.5">{label}</p>
+      {/* ── 일별 탭 ── */}
+      {teacherTab === 'daily' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex flex-wrap gap-2">
+              {classes.map(c => (
+                <button key={c} onClick={() => setSelectedClass(c)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}>
+                  {c}
+                </button>
+              ))}
             </div>
-          ))}
+            <div className="flex items-center gap-1 ml-auto">
+              <button onClick={() => shiftDate(-1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronLeft size={16} /></button>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <button onClick={() => shiftDate(1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronRight size={16} /></button>
+              <button onClick={() => setDate(toDateStr(new Date()))} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400">
+                <RotateCcw size={14} />
+              </button>
+            </div>
+          </div>
+
+          {filtered.length > 0 && (
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: '출석', value: presentCount, color: 'text-green-600 bg-green-50 border-green-200' },
+                { label: '지각', value: lateCount,    color: 'text-yellow-600 bg-yellow-50 border-yellow-200' },
+                { label: '결석', value: absentCount,  color: 'text-red-500 bg-red-50 border-red-200' },
+                { label: '미체크', value: unchecked,  color: 'text-slate-500 bg-slate-50 border-slate-200' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className={`rounded-xl border p-3 text-center ${color}`}>
+                  <p className="text-2xl font-bold">{value}</p>
+                  <p className="text-xs mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {filtered.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
+              <p className="text-slate-400 text-sm">이 반에 등록된 학생이 없습니다</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+              {filtered.map(student => {
+                const cur = records[student.name] ?? null;
+                const isSaving = saving === student.name;
+                return (
+                  <div key={student.id} className="flex items-center gap-3 px-4 py-3">
+                    <p className="flex-1 font-medium text-slate-800 text-sm">{student.name}</p>
+                    {isSaving && <Loader size={14} className="animate-spin text-slate-400" />}
+                    <div className="flex gap-1.5">
+                      {(['present','late','absent'] as const).map(s => {
+                        const cfg = STATUS_CONFIG[s];
+                        return (
+                          <button key={s} onClick={() => mark(student.name, s)} disabled={isSaving}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                              cur === s ? cfg.color : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+                            }`}>
+                            {cfg.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* 학생 목록 */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
-          <p className="text-slate-400 text-sm">이 반에 등록된 학생이 없습니다</p>
-          <p className="text-xs text-slate-300 mt-1">학생 관리 탭에서 먼저 학생을 추가해주세요</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-          {filtered.map(student => {
-            const cur = records[student.name] ?? null;
-            const isSaving = saving === student.name;
-            return (
-              <div key={student.id} className="flex items-center gap-3 px-4 py-3">
-                <p className="flex-1 font-medium text-slate-800 text-sm">{student.name}</p>
-                {isSaving && <Loader size={14} className="animate-spin text-slate-400" />}
-                <div className="flex gap-1.5">
-                  {(['present','late','absent'] as const).map(s => {
-                    const cfg = STATUS_CONFIG[s];
-                    const active = cur === s;
-                    return (
-                      <button key={s} onClick={() => mark(student.name, s)} disabled={isSaving}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                          active ? cfg.color : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
-                        }`}>
-                        {cfg.label}
-                      </button>
-                    );
-                  })}
-                </div>
+      {/* ── 월별 탭 ── */}
+      {teacherTab === 'monthly' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* 반 선택 */}
+            <div className="flex flex-wrap gap-2">
+              {classes.map(c => (
+                <button key={c} onClick={() => setSelectedClass(c)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            {/* 월 이동 */}
+            <div className="flex items-center gap-1 ml-auto">
+              <button onClick={() => shiftMonth(-1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronLeft size={16} /></button>
+              <p className="px-3 font-semibold text-slate-700 min-w-[90px] text-center">{year}년 {month}월</p>
+              <button onClick={() => shiftMonth(1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronRight size={16} /></button>
+            </div>
+          </div>
+
+          {monthlyLoading ? (
+            <div className="flex justify-center py-12"><Loader size={24} className="animate-spin text-indigo-400" /></div>
+          ) : (
+            <>
+              {/* 범례 */}
+              <div className="flex gap-3 text-xs">
+                {(['present','late','absent'] as const).map(s => (
+                  <span key={s} className={`px-2 py-1 rounded font-semibold ${STATUS_CONFIG[s].cell}`}>
+                    {STATUS_CONFIG[s].short} = {STATUS_CONFIG[s].label}
+                  </span>
+                ))}
               </div>
-            );
-          })}
+
+              {/* 테이블 */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <table className="text-xs border-collapse" style={{ minWidth: `${120 + lastDay * 32}px` }}>
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="sticky left-0 bg-slate-50 text-left px-4 py-2.5 font-semibold text-slate-600 border-r border-slate-200 min-w-[100px]">이름</th>
+                      {days.map(d => {
+                        const dow = new Date(year, month - 1, d).getDay();
+                        return (
+                          <th key={d} className={`w-8 py-2.5 font-semibold text-center ${dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-slate-500'}`}>
+                            {d}
+                          </th>
+                        );
+                      })}
+                      <th className="px-3 py-2.5 font-semibold text-green-600 text-center">출</th>
+                      <th className="px-3 py-2.5 font-semibold text-yellow-600 text-center">지</th>
+                      <th className="px-3 py-2.5 font-semibold text-red-500 text-center">결</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filtered.map(student => {
+                      const sMap = monthlyByStudent[student.name] ?? {};
+                      const pCnt = Object.values(sMap).filter(v => v === 'present').length;
+                      const lCnt = Object.values(sMap).filter(v => v === 'late').length;
+                      const aCnt = Object.values(sMap).filter(v => v === 'absent').length;
+                      return (
+                        <tr key={student.id} className="hover:bg-slate-50">
+                          <td className="sticky left-0 bg-white hover:bg-slate-50 px-4 py-2 font-medium text-slate-800 border-r border-slate-100">{student.name}</td>
+                          {days.map(d => {
+                            const status = sMap[d];
+                            const cfg = status ? STATUS_CONFIG[status] : null;
+                            return (
+                              <td key={d} className="w-8 py-2 text-center">
+                                {cfg && (
+                                  <span className={`inline-block w-6 h-6 rounded text-[10px] font-bold leading-6 ${cfg.cell}`}>
+                                    {cfg.short}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2 text-center font-bold text-green-600">{pCnt || ''}</td>
+                          <td className="px-3 py-2 text-center font-bold text-yellow-600">{lCnt || ''}</td>
+                          <td className="px-3 py-2 text-center font-bold text-red-500">{aCnt || ''}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
