@@ -38,6 +38,7 @@ export default function WordListDetail() {
   const [studyIdx, setStudyIdx] = useState(0);
   const [studyWords, setStudyWords] = useState<Word[]>([]);
   const [reviewMode, setReviewMode] = useState(false);
+  const [cardDirection, setCardDirection] = useState<'en-kr' | 'kr-en'>('en-kr');
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -363,18 +364,35 @@ export default function WordListDetail() {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <p className="text-sm text-slate-500">
                   {reviewMode ? '🔄 복습 모드' : '📖 전체 학습'} — {studyIdx + 1} / {studyWords.length}
                 </p>
-                <button onClick={() => setStudyWords(s => shuffle([...s]))} className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
-                  <RotateCcw size={12} /> 섞기
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* 방향 토글 */}
+                  <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+                    <button
+                      onClick={() => { setCardDirection('en-kr'); setStudyIdx(i => i); }}
+                      className={`px-3 py-1.5 transition-colors ${cardDirection === 'en-kr' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                    >
+                      영 → 한
+                    </button>
+                    <button
+                      onClick={() => { setCardDirection('kr-en'); setStudyIdx(i => i); }}
+                      className={`px-3 py-1.5 transition-colors ${cardDirection === 'kr-en' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                    >
+                      한 → 영
+                    </button>
+                  </div>
+                  <button onClick={() => setStudyWords(s => shuffle([...s]))} className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
+                    <RotateCcw size={12} /> 섞기
+                  </button>
+                </div>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-1.5 mb-4">
                 <div className="bg-indigo-500 h-1.5 rounded-full transition-all" style={{ width: `${((studyIdx + 1) / studyWords.length) * 100}%` }} />
               </div>
-              <FlashCard word={studyWords[studyIdx]} />
+              <FlashCard word={studyWords[studyIdx]} direction={cardDirection} />
               <div className="flex items-center justify-center gap-4 mt-4">
                 <button onClick={() => setStudyIdx(i => Math.max(0, i - 1))} disabled={studyIdx === 0}
                   className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-30 text-sm">
