@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { TestType } from '../types';
 import {
   fetchStudents, addStudent, deleteStudent,
@@ -228,54 +228,87 @@ export default function Students() {
               <p className="text-slate-400 text-sm">이번 주 응시 기록이 없습니다</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">학생</th>
-                    {REQUIRED.map(t => (
-                      <th key={t} className="text-center px-3 py-3 font-semibold text-slate-600 text-xs">
-                        {REQUIRED_LABELS[t]}
-                      </th>
-                    ))}
-                    <th className="text-center px-3 py-3 font-semibold text-slate-600">완료</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {statusList.map(({ name, scores, allPassed }) => (
-                    <tr key={name} className={allPassed ? 'bg-green-50/40' : ''}>
-                      <td className="px-4 py-3 font-medium text-slate-800">{name}</td>
+            <>
+              {/* 모바일: 카드 목록 */}
+              <div className="md:hidden space-y-3">
+                {statusList.map(({ name, scores, allPassed }) => (
+                  <div key={name} className={`bg-white rounded-xl border p-4 ${allPassed ? 'border-green-200' : 'border-slate-200'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-semibold text-slate-800">{name}</p>
+                      {allPassed
+                        ? <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">✓ 완료</span>
+                        : <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full">미완료</span>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       {REQUIRED.map(t => {
                         const score = scores[t];
                         const passed = score !== null && score >= 80;
                         return (
-                          <td key={t} className="text-center px-3 py-3">
-                            {score == null ? (
-                              <Clock size={16} className="mx-auto text-slate-300" />
-                            ) : passed ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600">
-                                <CheckCircle size={14} /> {score}%
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
-                                <XCircle size={14} /> {score}%
-                              </span>
-                            )}
-                          </td>
+                          <div key={t} className={`rounded-lg px-3 py-2 text-xs ${
+                            score == null ? 'bg-slate-50 text-slate-400'
+                            : passed ? 'bg-green-50 text-green-600'
+                            : 'bg-red-50 text-red-500'
+                          }`}>
+                            <p className="font-medium">{REQUIRED_LABELS[t]}</p>
+                            <p className="font-bold mt-0.5">
+                              {score == null ? '미응시' : `${score}% ${passed ? '✓' : '✗'}`}
+                            </p>
+                          </div>
                         );
                       })}
-                      <td className="text-center px-3 py-3">
-                        {allPassed
-                          ? <span className="text-xs font-bold text-green-600">✓ 완료</span>
-                          : <Link to={`/wordlists/${selectedListId}?tab=checklist`}
-                              className="text-xs text-indigo-500 hover:underline">확인</Link>
-                        }
-                      </td>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 데스크탑: 테이블 */}
+              <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">학생</th>
+                      {REQUIRED.map(t => (
+                        <th key={t} className="text-center px-3 py-3 font-semibold text-slate-600 text-xs">
+                          {REQUIRED_LABELS[t]}
+                        </th>
+                      ))}
+                      <th className="text-center px-3 py-3 font-semibold text-slate-600">완료</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {statusList.map(({ name, scores, allPassed }) => (
+                      <tr key={name} className={allPassed ? 'bg-green-50/40' : ''}>
+                        <td className="px-4 py-3 font-medium text-slate-800">{name}</td>
+                        {REQUIRED.map(t => {
+                          const score = scores[t];
+                          const passed = score !== null && score >= 80;
+                          return (
+                            <td key={t} className="text-center px-3 py-3">
+                              {score == null ? (
+                                <Clock size={16} className="mx-auto text-slate-300" />
+                              ) : passed ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600">
+                                  <CheckCircle size={14} /> {score}%
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
+                                  <XCircle size={14} /> {score}%
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="text-center px-3 py-3">
+                          {allPassed
+                            ? <span className="text-xs font-bold text-green-600">✓ 완료</span>
+                            : <span className="text-xs text-red-400">미완료</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}

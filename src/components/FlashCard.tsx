@@ -18,7 +18,7 @@ export default function FlashCard({ word, showKorean = false }: Props) {
   };
 
   return (
-    <div className="flashcard-container w-full h-64 cursor-pointer" onClick={() => setFlipped(f => !f)}>
+    <div className="flashcard-container w-full h-56 md:h-64 cursor-pointer" onClick={() => setFlipped(f => !f)}>
       <div className={`flashcard-inner ${flipped ? 'flipped' : ''}`}>
         {/* Front */}
         <div className="flashcard-front rounded-2xl bg-white border-2 border-indigo-200 shadow-md flex flex-col items-center justify-center p-8 select-none">
