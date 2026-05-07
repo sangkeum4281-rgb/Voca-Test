@@ -39,6 +39,7 @@ export default function Students() {
   const [loading, setLoading] = useState(true);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  const [classInput, setClassInput] = useState('');
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
@@ -55,8 +56,8 @@ export default function Students() {
     if (!nameInput.trim() || adding) return;
     setAdding(true);
     try {
-      const s = await addStudent(nameInput.trim());
-      setStudents(prev => [...prev, s].sort((a, b) => a.name.localeCompare(b.name)));
+      const s = await addStudent(nameInput.trim(), classInput.trim());
+      setStudents(prev => [...prev, s].sort((a, b) => a.className.localeCompare(b.className) || a.name.localeCompare(b.name)));
       setNameInput('');
     } finally {
       setAdding(false);
@@ -145,14 +146,19 @@ export default function Students() {
       {/* 학생 목록 탭 */}
       {tab === 'roster' && (
         <div className="space-y-4">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <input
-              className="flex-1 border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="flex-1 min-w-[120px] border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              value={classInput}
+              onChange={e => setClassInput(e.target.value)}
+              placeholder="반 (예: 동부중 3학년)"
+            />
+            <input
+              className="flex-1 min-w-[100px] border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               value={nameInput}
               onChange={e => setNameInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
-              placeholder="학생 이름 추가"
-              autoFocus
+              placeholder="학생 이름"
             />
             <button onClick={handleAdd} disabled={!nameInput.trim() || adding}
               className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-40">
@@ -166,8 +172,15 @@ export default function Students() {
               <p className="text-slate-400 text-sm">등록된 학생이 없습니다</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-              {students.map(s => (
+            // 반별 그룹핑
+            <div className="space-y-4">
+              {[...new Set(students.map(s => s.className))].sort().map(cls => (
+                <div key={cls} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100">
+                    <p className="text-sm font-semibold text-slate-700">{cls || '반 미지정'}</p>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {students.filter(s => s.className === cls).map(s => (
                 <div key={s.id} className="flex items-center justify-between px-5 py-3">
                   <div>
                     <p className="font-medium text-slate-800">{s.name}</p>
@@ -177,6 +190,9 @@ export default function Students() {
                     className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
                     <Trash2 size={15} />
                   </button>
+                </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

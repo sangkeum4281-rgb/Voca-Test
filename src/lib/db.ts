@@ -200,6 +200,7 @@ export async function fetchAllWeeklyResults(wordListId: string): Promise<TestRes
 export interface Student {
   id: string;
   name: string;
+  className: string;
   createdAt: string;
 }
 
@@ -207,26 +208,173 @@ export async function fetchStudents(): Promise<Student[]> {
   const { data, error } = await supabase
     .from('students')
     .select('*')
+    .order('class_name')
     .order('name');
   if (error) throw error;
   return (data ?? []).map(row => ({
     id: row.id as string,
     name: row.name as string,
+    className: (row.class_name as string) ?? '',
     createdAt: row.created_at as string,
   }));
 }
 
-export async function addStudent(name: string): Promise<Student> {
+export async function addStudent(name: string, className: string): Promise<Student> {
   const { data, error } = await supabase
     .from('students')
-    .insert({ name })
+    .insert({ name, class_name: className })
     .select()
     .single();
   if (error) throw error;
-  return { id: data.id, name: data.name, createdAt: data.created_at };
+  return { id: data.id, name: data.name, className: data.class_name ?? '', createdAt: data.created_at };
 }
 
 export async function deleteStudent(id: string): Promise<void> {
   const { error } = await supabase.from('students').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── announcements ─────────────────────────────────────────
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  createdAt: string;
+}
+
+export async function fetchAnnouncements(): Promise<Announcement[]> {
+  const { data, error } = await supabase
+    .from('announcements')
+    .select('*')
+    .order('pinned', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    title: row.title as string,
+    content: row.content as string,
+    pinned: row.pinned as boolean,
+    createdAt: row.created_at as string,
+  }));
+}
+
+export async function saveAnnouncement(payload: { title: string; content: string; pinned: boolean }): Promise<Announcement> {
+  const { data, error } = await supabase.from('announcements').insert(payload).select().single();
+  if (error) throw error;
+  return { id: data.id, title: data.title, content: data.content, pinned: data.pinned, createdAt: data.created_at };
+}
+
+export async function updateAnnouncement(id: string, payload: { title: string; content: string; pinned: boolean }): Promise<void> {
+  const { error } = await supabase.from('announcements').update(payload).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteAnnouncement(id: string): Promise<void> {
+  const { error } = await supabase.from('announcements').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── attendance ────────────────────────────────────────────
+
+export interface AttendanceRecord {
+  id: string;
+  studentName: string;
+  date: string;
+  status: 'present' | 'late' | 'absent';
+  note: string;
+}
+
+export async function fetchAttendanceByDate(date: string): Promise<AttendanceRecord[]> {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('date', date);
+  if (error) throw error;
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    studentName: row.student_name as string,
+    date: row.date as string,
+    status: row.status as AttendanceRecord['status'],
+    note: (row.note as string) ?? '',
+  }));
+}
+
+export async function fetchAttendanceByStudent(studentName: string): Promise<AttendanceRecord[]> {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('student_name', studentName)
+    .order('date', { ascending: false })
+    .limit(60);
+  if (error) throw error;
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    studentName: row.student_name as string,
+    date: row.date as string,
+    status: row.status as AttendanceRecord['status'],
+    note: (row.note as string) ?? '',
+  }));
+}
+
+export async function upsertAttendance(record: Omit<AttendanceRecord, 'id'>): Promise<void> {
+  const { error } = await supabase.from('attendance').upsert({
+    student_name: record.studentName,
+    date: record.date,
+    status: record.status,
+    note: record.note,
+  }, { onConflict: 'student_name,date' });
+  if (error) throw error;
+}
+
+export async function deleteAttendance(studentName: string, date: string): Promise<void> {
+  const { error } = await supabase.from('attendance').delete()
+    .eq('student_name', studentName).eq('date', date);
+  if (error) throw error;
+}
+
+// ── Q&A ──────────────────────────────────────────────────
+
+export interface QnaItem {
+  id: string;
+  studentName: string;
+  question: string;
+  answer: string;
+  answeredAt: string | null;
+  createdAt: string;
+}
+
+export async function fetchQna(): Promise<QnaItem[]> {
+  const { data, error } = await supabase
+    .from('qna')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    studentName: row.student_name as string,
+    question: row.question as string,
+    answer: (row.answer as string) ?? '',
+    answeredAt: row.answered_at as string | null,
+    createdAt: row.created_at as string,
+  }));
+}
+
+export async function postQuestion(studentName: string, question: string): Promise<void> {
+  const { error } = await supabase.from('qna').insert({ student_name: studentName, question });
+  if (error) throw error;
+}
+
+export async function answerQuestion(id: string, answer: string): Promise<void> {
+  const { error } = await supabase.from('qna').update({
+    answer,
+    answered_at: answer ? new Date().toISOString() : null,
+  }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteQna(id: string): Promise<void> {
+  const { error } = await supabase.from('qna').delete().eq('id', id);
   if (error) throw error;
 }

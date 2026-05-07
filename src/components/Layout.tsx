@@ -1,24 +1,30 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, LayoutDashboard, History, LogIn, LogOut, Users } from 'lucide-react';
+import { BookOpen, LayoutDashboard, History, LogIn, LogOut, Users, CalendarCheck, Megaphone, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const publicNav = [
   { path: '/', label: '홈', icon: LayoutDashboard },
   { path: '/wordlists', label: '단어장', icon: BookOpen },
-  { path: '/results', label: '결과', icon: History },
+  { path: '/attendance', label: '출결', icon: CalendarCheck },
+  { path: '/announcements', label: '공지', icon: Megaphone },
+  { path: '/qna', label: 'Q&A', icon: MessageCircle },
 ];
-const teacherNav = [
+const teacherExtra = [
   { path: '/students', label: '학생', icon: Users },
+  { path: '/results', label: '결과', icon: History },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const { isTeacher, signOut } = useAuth();
-  const navItems = [...publicNav, ...(isTeacher ? teacherNav : [])];
+  const bottomNav = publicNav;
+  const desktopNav = [...publicNav, ...(isTeacher ? teacherExtra : [])];
+
+  const isActive = (path: string) =>
+    path === '/' ? pathname === '/' : pathname.startsWith(path);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* 상단 헤더 */}
       <header className="bg-indigo-700 text-white shadow-lg sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="text-lg font-bold tracking-tight hover:opacity-90">
@@ -28,16 +34,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {/* 데스크탑 nav */}
           <div className="hidden md:flex items-center gap-1">
             <nav className="flex gap-1">
-              {navItems.map(({ path, label, icon: Icon }) => (
-                <Link
-                  key={path}
-                  to={path}
+              {desktopNav.map(({ path, label, icon: Icon }) => (
+                <Link key={path} to={path}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    pathname === path ? 'bg-white text-indigo-700' : 'text-indigo-100 hover:bg-indigo-600'
-                  }`}
-                >
-                  <Icon size={16} />
-                  {label}
+                    isActive(path) ? 'bg-white text-indigo-700' : 'text-indigo-100 hover:bg-indigo-600'
+                  }`}>
+                  <Icon size={15} />{label}
                 </Link>
               ))}
             </nav>
@@ -54,14 +56,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* 모바일 선생님 버튼 */}
-          <div className="md:hidden">
+          {/* 모바일 우측 */}
+          <div className="md:hidden flex items-center gap-1">
+            {isTeacher && (
+              <Link to="/students" className={`p-2 rounded-md ${isActive('/students') ? 'bg-white text-indigo-700' : 'text-indigo-200 hover:bg-indigo-600'}`}>
+                <Users size={18} />
+              </Link>
+            )}
             {isTeacher ? (
-              <button onClick={signOut} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs text-indigo-200 hover:bg-indigo-600">
-                <LogOut size={14} /> 로그아웃
+              <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-indigo-200 hover:bg-indigo-600">
+                <LogOut size={14} />
               </button>
             ) : (
-              <Link to="/teacher" className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs text-indigo-200 hover:bg-indigo-600">
+              <Link to="/teacher" className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-indigo-200 hover:bg-indigo-600">
                 <LogIn size={14} /> 선생님
               </Link>
             )}
@@ -69,24 +76,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* 본문 — 모바일에서 하단 탭바 높이만큼 여백 */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-5 pb-24 md:pb-6">
         {children}
       </main>
 
       {/* 모바일 하단 탭바 */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 flex">
-        {navItems.map(({ path, label, icon: Icon }) => {
-          const active = pathname === path || (path !== '/' && pathname.startsWith(path));
+        {bottomNav.map(({ path, label, icon: Icon }) => {
+          const active = isActive(path);
           return (
-            <Link
-              key={path}
-              to={path}
+            <Link key={path} to={path}
               className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-xs font-medium transition-colors ${
                 active ? 'text-indigo-600' : 'text-slate-400'
-              }`}
-            >
-              <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
+              }`}>
+              <Icon size={21} strokeWidth={active ? 2.5 : 1.8} />
               {label}
             </Link>
           );
@@ -94,7 +97,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       <footer className="hidden md:block text-center py-4 text-sm text-slate-400 border-t border-slate-200">
-        최강학원 — 고등부 영단어 학습 플랫폼
+        최강학원
       </footer>
     </div>
   );

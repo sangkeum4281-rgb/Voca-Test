@@ -8,6 +8,9 @@ import Test from './pages/Test';
 import Results from './pages/Results';
 import TeacherLogin from './pages/TeacherLogin';
 import Students from './pages/Students';
+import Attendance from './pages/Attendance';
+import Announcements from './pages/Announcements';
+import QnA from './pages/QnA';
 import './index.css';
 
 export default function App() {
@@ -23,6 +26,9 @@ export default function App() {
             <Route path="/results" element={<Results />} />
             <Route path="/teacher" element={<TeacherLogin />} />
             <Route path="/students" element={<Students />} />
+            <Route path="/attendance" element={<Attendance />} />
+            <Route path="/announcements" element={<Announcements />} />
+            <Route path="/qna" element={<QnA />} />
           </Routes>
         </Layout>
       </BrowserRouter>
