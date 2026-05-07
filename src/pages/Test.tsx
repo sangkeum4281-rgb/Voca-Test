@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { WordList, TestType, TestAnswer, Word } from '../types';
 import { fetchWordList, saveTestResult, incrementWordCount } from '../lib/db';
-import { shuffle, speak } from '../utils';
+import { shuffle, speak, isAnswerCorrect } from '../utils';
 import { ChevronLeft, CheckCircle, XCircle, ArrowRight, RotateCcw, Loader, Volume2 } from 'lucide-react';
 
 type Phase = 'setup' | 'testing' | 'done';
@@ -131,8 +131,8 @@ export default function Test() {
 
   const submitAnswer = async () => {
     const q = questions[currentIdx];
-    const ans = selected ?? userInput.trim().toLowerCase();
-    const correct = ans === q.correctAnswer.toLowerCase();
+    const ans = selected ?? userInput.trim();
+    const correct = isAnswerCorrect(ans, q.correctAnswer);
 
     const newAnswer: TestAnswer = {
       wordId: q.word.id,

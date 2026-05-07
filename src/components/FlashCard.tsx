@@ -18,49 +18,42 @@ export default function FlashCard({ word, showKorean = false }: Props) {
   };
 
   return (
-    <div className="flashcard-container w-full h-56 md:h-64 cursor-pointer" onClick={() => setFlipped(f => !f)}>
+    <div className="flashcard-container w-full h-40 md:h-48 cursor-pointer" onClick={() => setFlipped(f => !f)}>
       <div className={`flashcard-inner ${flipped ? 'flipped' : ''}`}>
         {/* Front */}
-        <div className="flashcard-front rounded-2xl bg-white border-2 border-indigo-200 shadow-md flex flex-col items-center justify-center p-8 select-none">
-          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full mb-4 ${getMasteryColor(mastery)}`}>
+        <div className="flashcard-front rounded-xl bg-white border-2 border-indigo-200 shadow-md flex flex-col items-center justify-center p-5 select-none">
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mb-2 ${getMasteryColor(mastery)}`}>
             {getMasteryLabel(mastery)}
           </span>
-          <p className="text-4xl font-bold text-indigo-700 mb-2">{word.english}</p>
-          <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-            word.difficulty === 'easy' ? 'bg-green-100 text-green-600'
-            : word.difficulty === 'hard' ? 'bg-red-100 text-red-600'
-            : 'bg-yellow-100 text-yellow-600'
-          }`}>
-            {word.difficulty === 'easy' ? '쉬움' : word.difficulty === 'hard' ? '어려움' : '보통'}
-          </span>
-          <div className="absolute top-4 right-4 flex gap-2">
+          <p className="text-3xl md:text-4xl font-bold text-indigo-700">{word.english}</p>
+          <div className="absolute top-3 right-3">
             <button onClick={handleSpeak} className="p-1.5 rounded-full hover:bg-indigo-50 text-indigo-400">
-              <Volume2 size={18} />
+              <Volume2 size={16} />
             </button>
           </div>
-          <p className="absolute bottom-4 text-xs text-slate-400">클릭하여 뒤집기</p>
+          <p className="absolute bottom-2 text-xs text-slate-300">탭하여 뒤집기</p>
         </div>
 
         {/* Back */}
-        <div className="flashcard-back rounded-2xl bg-indigo-700 text-white shadow-md flex flex-col items-center justify-center p-8 select-none">
-          <p className="text-3xl font-bold mb-3">{word.korean}</p>
+        <div className="flashcard-back rounded-xl bg-indigo-700 text-white shadow-md flex flex-col items-center justify-center p-5 select-none">
+          <p className="text-2xl md:text-3xl font-bold mb-2">{word.korean}</p>
           {word.example && (
-            <p className="text-sm text-indigo-200 italic text-center mb-3">"{word.example}"</p>
+            <p className="text-xs text-indigo-200 italic text-center mb-2 line-clamp-2">"{word.example}"</p>
           )}
-          <div className="flex flex-wrap gap-2 justify-center">
+          <div className="flex flex-wrap gap-1.5 justify-center">
             {word.synonyms.length > 0 && (
-              <div className="bg-blue-500/40 rounded-lg px-3 py-1.5 text-xs">
-                <span className="font-semibold">동의어: </span>{word.synonyms.join(', ')}
+              <div className="bg-blue-500/40 rounded-lg px-2.5 py-1 text-xs">
+                <span className="font-semibold">동의어: </span>{word.synonyms.slice(0, 3).join(', ')}
               </div>
             )}
             {word.antonyms.length > 0 && (
-              <div className="bg-rose-500/40 rounded-lg px-3 py-1.5 text-xs">
-                <span className="font-semibold">반의어: </span>{word.antonyms.join(', ')}
+              <div className="bg-rose-500/40 rounded-lg px-2.5 py-1 text-xs">
+                <span className="font-semibold">반의어: </span>{word.antonyms.slice(0, 3).join(', ')}
               </div>
             )}
           </div>
-          <button onClick={e => { e.stopPropagation(); setFlipped(false); }} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/20 text-white/70">
-            <RotateCcw size={16} />
+          <button onClick={e => { e.stopPropagation(); setFlipped(false); }} className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-white/20 text-white/70">
+            <RotateCcw size={14} />
           </button>
         </div>
       </div>
