@@ -85,10 +85,22 @@ export function getMasteryColor(level: number): string {
   return ['bg-slate-200 text-slate-600', 'bg-yellow-100 text-yellow-700', 'bg-blue-100 text-blue-700', 'bg-green-100 text-green-700'][level] ?? 'bg-slate-200 text-slate-600';
 }
 
-// 3단 변화 패턴 감지: run-ran-run, (bring-brought-brought) 등
+// 3단 변화 패턴 감지: run-ran-run, (come came come), (bring–brought–brought) 등
 function isConjugation(s: string): boolean {
-  const stripped = s.replace(/^[□■○●◇◆☐☑✓✗\s]+/, '').replace(/[()]/g, '').trim();
-  return /^[a-zA-Z]+(-[a-zA-Z]+){2,}$/.test(stripped.replace(/\s/g, ''));
+  // em-dash·중간점 등 → 하이픈으로 통일
+  const n = s.replace(/[–—−·]/g, '-').trim();
+  const stripped = n.replace(/^[□■○●◇◆☐☑✓✗\s]+/, '').trim();
+  // (word-word-word) 또는 (word word word) 형태
+  if (/^\([a-zA-Z]+([\s-][a-zA-Z]+){2,}\)$/.test(stripped)) return true;
+  // word-word-word 형태 (괄호 없이)
+  const noParens = stripped.replace(/[()]/g, '').trim();
+  return /^[a-zA-Z]+(-[a-zA-Z]+){2,}$/.test(noParens.replace(/\s/g, ''));
+}
+
+// 섹션 헤더 여부 (READING, CONVERSATION 등)
+function isSectionHeader(english: string): boolean {
+  return /^(READING|CONVERSATION|Further|LISTENING|WRITING|SPEAKING|GRAMMAR|REVIEW|TEST|Lesson|WORD)$/i.test(english)
+    || /^[A-Z][A-Z\s]{5,}$/.test(english); // 전체 대문자 6자 이상
 }
 
 // 체크박스·번호 제거 후 영어 추출
@@ -130,7 +142,18 @@ function findSplitPoint(s: string): number {
 }
 
 export function parseWords(text: string): Partial<Word>[] {
-  const rawLines = text.trim().split('\n').filter(Boolean);
+  // 다단 PDF 복사 처리: 한 줄에 □ 여러 개 → 각각 분리
+  const rawLines: string[] = [];
+  for (const line of text.trim().split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    const cbCount = (t.match(/[□■○●◇◆☐☑✓✗]/g) ?? []).length;
+    if (cbCount > 1) {
+      rawLines.push(...t.split(/(?=[□■○●◇◆☐☑✓✗])/).map(s => s.trim()).filter(Boolean));
+    } else {
+      rawLines.push(t);
+    }
+  }
 
   // 연속 줄 병합
   const lines: string[] = [];
@@ -196,8 +219,10 @@ export function parseWords(text: string): Partial<Word>[] {
       }
     }
 
-    // 영어가 없거나 품사 약자만 남은 경우 스킵 (a. n. v. adv. 등)
+    // 품사 약자만 남은 경우 스킵 (a. n. v. adv. 등)
     if (!english || !/[a-zA-Z]/.test(english) || /^[a-z]{1,8}\.?$/.test(english)) continue;
+    // 섹션 헤더 스킵 (READING, CONVERSATION 등)
+    if (isSectionHeader(english)) continue;
     result.push({ english, korean, synonyms, antonyms, example });
   }
   return result;
