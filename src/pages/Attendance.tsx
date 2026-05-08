@@ -57,7 +57,7 @@ export default function Attendance() {
     if (isTeacher) {
       fetchStudents().then(s => {
         setStudents(s);
-        const classes = [...new Set(s.map(x => x.className).filter(Boolean))].sort();
+        const classes = [...new Set(s.map(x => x.className).filter(Boolean))];
         if (classes.length > 0) setSelectedClass(classes[0]);
         setLoading(false);
       });
@@ -161,7 +161,7 @@ export default function Attendance() {
     else { setYear(y); setMonth(m); }
   };
 
-  const classes = [...new Set(students.map(s => s.className).filter(Boolean))].sort();
+  const classes = [...new Set(students.map(s => s.className).filter(Boolean))];
   const filtered = students.filter(s => s.className === selectedClass);
 
   // 월별 테이블 계산
