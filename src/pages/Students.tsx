@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import type { TestType } from '../types';
 import {
   fetchStudents, addStudent, deleteStudent,
-  fetchWordLists, fetchAllWeeklyResults,
-  type Student,
+  fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
+  type Student, type AttendanceRecord,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,9 +22,13 @@ const REQUIRED_LABELS: Record<string, string> = {
 
 interface StudentStatus {
   name: string;
+  className: string;
   scores: Record<string, number | null>;
   allPassed: boolean;
   notAttempted: number;
+  attPresent: number;
+  attLate: number;
+  attAbsent: number;
 }
 
 export default function Students() {
@@ -35,6 +39,7 @@ export default function Students() {
   const [students, setStudents] = useState<Student[]>([]);
   const [wordLists, setWordLists] = useState<WordList[]>([]);
   const [selectedListId, setSelectedListId] = useState('');
+  const [selectedWeeklyClass, setSelectedWeeklyClass] = useState('');
   const [statusList, setStatusList] = useState<StudentStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
@@ -57,6 +62,8 @@ export default function Students() {
       setStudents(s);
       setWordLists(wl);
       if (wl.length > 0) setSelectedListId(wl[0].id);
+      const classes = [...new Set(s.map(x => x.className).filter(Boolean))].sort();
+      if (classes.length > 0) setSelectedWeeklyClass(classes[0]);
       setLoading(false);
     });
   }, [isTeacher, navigate]);
@@ -82,31 +89,47 @@ export default function Students() {
   const loadWeeklyStatus = async (listId: string) => {
     if (!listId) return;
     setWeeklyLoading(true);
-    const results = await fetchAllWeeklyResults(listId);
 
-    // 등록된 학생 + 이번 주에 시험 친 학생 모두 포함
-    const names = new Set([
-      ...students.map(s => s.name),
-      ...results.map(r => r.studentName),
+    const [results, attRecords] = await Promise.all([
+      fetchAllWeeklyResults(listId),
+      fetchAttendanceByWeek(),
     ]);
 
+    // 등록된 학생 기준으로만 표시 (className 포함)
     const map: Record<string, Record<string, number | null>> = {};
-    for (const name of names) map[name] = { 'multiple-choice-en': null, 'multiple-choice-kr': null, 'fill-blank': null, 'spelling': null };
+    const attMap: Record<string, AttendanceRecord[]> = {};
 
-    for (const r of results) {
-      if (!REQUIRED.includes(r.testType as TestType)) continue;
-      const pct = Math.round((r.score / r.total) * 100);
-      const cur = map[r.studentName]?.[r.testType];
-      if (map[r.studentName]) {
-        map[r.studentName][r.testType] = cur == null ? pct : Math.max(cur, pct);
-      }
+    for (const s of students) {
+      map[s.name] = { 'multiple-choice-en': null, 'multiple-choice-kr': null, 'fill-blank': null, 'spelling': null };
+      attMap[s.name] = [];
     }
 
-    const statusArr: StudentStatus[] = Array.from(names).map(name => {
-      const scores = map[name];
+    for (const r of results) {
+      if (!REQUIRED.includes(r.testType as TestType) || !map[r.studentName]) continue;
+      const pct = Math.round((r.score / r.total) * 100);
+      const cur = map[r.studentName][r.testType];
+      map[r.studentName][r.testType] = cur == null ? pct : Math.max(cur, pct);
+    }
+
+    for (const r of attRecords) {
+      if (attMap[r.studentName]) attMap[r.studentName].push(r);
+    }
+
+    const statusArr: StudentStatus[] = students.map(s => {
+      const scores = map[s.name];
       const allPassed = REQUIRED.every(t => (scores[t] ?? 0) >= 80);
       const notAttempted = REQUIRED.filter(t => scores[t] == null).length;
-      return { name, scores, allPassed, notAttempted };
+      const att = attMap[s.name] ?? [];
+      return {
+        name: s.name,
+        className: s.className,
+        scores,
+        allPassed,
+        notAttempted,
+        attPresent: att.filter(a => a.status === 'present').length,
+        attLate:    att.filter(a => a.status === 'late').length,
+        attAbsent:  att.filter(a => a.status === 'absent').length,
+      };
     }).sort((a, b) => {
       if (a.allPassed !== b.allPassed) return a.allPassed ? 1 : -1;
       if (a.notAttempted !== b.notAttempted) return b.notAttempted - a.notAttempted;
@@ -118,16 +141,23 @@ export default function Students() {
   };
 
   useEffect(() => {
-    if (tab === 'weekly' && selectedListId) loadWeeklyStatus(selectedListId);
-  }, [tab, selectedListId]);
+    if (tab === 'weekly' && selectedListId && students.length > 0) loadWeeklyStatus(selectedListId);
+  }, [tab, selectedListId, students]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><Loader size={28} className="animate-spin text-indigo-400" /></div>;
   }
 
-  const passedCount = statusList.filter(s => s.allPassed).length;
-  const failedCount = statusList.filter(s => !s.allPassed && s.notAttempted < 4).length;
-  const notStartedCount = statusList.filter(s => s.notAttempted === 4).length;
+  const classes = [...new Set(students.map(s => s.className).filter(Boolean))].sort();
+
+  // 선택된 반으로 필터
+  const filteredStatus = selectedWeeklyClass
+    ? statusList.filter(s => s.className === selectedWeeklyClass)
+    : statusList;
+
+  const passedCount    = filteredStatus.filter(s => s.allPassed).length;
+  const failedCount    = filteredStatus.filter(s => !s.allPassed && s.notAttempted < 4).length;
+  const notStartedCount = filteredStatus.filter(s => s.notAttempted === 4).length;
 
   return (
     <div className="space-y-5">
@@ -181,17 +211,14 @@ export default function Students() {
               <p className="text-slate-400 text-sm">등록된 학생이 없습니다</p>
             </div>
           ) : (
-            // 반별 그룹핑 (접기/펼치기)
             <div className="space-y-3">
               {[...new Set(students.map(s => s.className))].sort().map(cls => {
                 const inClass = students.filter(s => s.className === cls);
                 const collapsed = collapsedClasses.has(cls);
                 return (
                   <div key={cls} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <button
-                      onClick={() => toggleClass(cls)}
-                      className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
-                    >
+                    <button onClick={() => toggleClass(cls)}
+                      className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-slate-700">{cls || '반 미지정'}</p>
                         <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{inClass.length}명</span>
@@ -216,7 +243,6 @@ export default function Students() {
               })}
             </div>
           )}
-
           <p className="text-xs text-slate-400 text-center">총 {students.length}명 등록</p>
         </div>
       )}
@@ -224,12 +250,24 @@ export default function Students() {
       {/* 주간 현황 탭 */}
       {tab === 'weekly' && (
         <div className="space-y-4">
+          {/* 반 선택 */}
+          <div className="flex flex-wrap gap-2">
+            {classes.map(c => (
+              <button key={c} onClick={() => setSelectedWeeklyClass(c)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  selectedWeeklyClass === c
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                }`}>
+                {c}
+              </button>
+            ))}
+          </div>
+
+          {/* 단어장 선택 */}
           <div className="flex items-center gap-3">
-            <select
-              value={selectedListId}
-              onChange={e => setSelectedListId(e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            >
+            <select value={selectedListId} onChange={e => setSelectedListId(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
               {wordLists.map(wl => <option key={wl.id} value={wl.id}>{wl.title}</option>)}
             </select>
             <button onClick={() => loadWeeklyStatus(selectedListId)} disabled={weeklyLoading}
@@ -239,7 +277,7 @@ export default function Students() {
           </div>
 
           {/* 요약 카드 */}
-          {statusList.length > 0 && (
+          {filteredStatus.length > 0 && (
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
                 <p className="text-2xl font-bold text-green-600">{passedCount}</p>
@@ -258,21 +296,26 @@ export default function Students() {
 
           {weeklyLoading ? (
             <div className="flex justify-center py-12"><Loader size={24} className="animate-spin text-indigo-400" /></div>
-          ) : statusList.length === 0 ? (
+          ) : filteredStatus.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-              <p className="text-slate-400 text-sm">이번 주 응시 기록이 없습니다</p>
+              <p className="text-slate-400 text-sm">이번 주 데이터가 없습니다</p>
             </div>
           ) : (
             <>
-              {/* 모바일: 카드 목록 */}
+              {/* 모바일: 카드 */}
               <div className="md:hidden space-y-3">
-                {statusList.map(({ name, scores, allPassed }) => (
+                {filteredStatus.map(({ name, scores, allPassed, attPresent, attLate, attAbsent }) => (
                   <div key={name} className={`bg-white rounded-xl border p-4 ${allPassed ? 'border-green-200' : 'border-slate-200'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <p className="font-semibold text-slate-800">{name}</p>
-                      {allPassed
-                        ? <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">✓ 완료</span>
-                        : <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full">미완료</span>}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">
+                          출{attPresent} 지{attLate} 결{attAbsent}
+                        </span>
+                        {allPassed
+                          ? <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">✓ 완료</span>
+                          : <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full">미완료</span>}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {REQUIRED.map(t => {
@@ -307,11 +350,14 @@ export default function Students() {
                           {REQUIRED_LABELS[t]}
                         </th>
                       ))}
-                      <th className="text-center px-3 py-3 font-semibold text-slate-600">완료</th>
+                      <th className="text-center px-3 py-3 font-semibold text-green-600 text-xs">출석</th>
+                      <th className="text-center px-3 py-3 font-semibold text-yellow-600 text-xs">지각</th>
+                      <th className="text-center px-3 py-3 font-semibold text-red-500 text-xs">결석</th>
+                      <th className="text-center px-3 py-3 font-semibold text-slate-600 text-xs">완료</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {statusList.map(({ name, scores, allPassed }) => (
+                    {filteredStatus.map(({ name, scores, allPassed, attPresent, attLate, attAbsent }) => (
                       <tr key={name} className={allPassed ? 'bg-green-50/40' : ''}>
                         <td className="px-4 py-3 font-medium text-slate-800">{name}</td>
                         {REQUIRED.map(t => {
@@ -320,19 +366,22 @@ export default function Students() {
                           return (
                             <td key={t} className="text-center px-3 py-3">
                               {score == null ? (
-                                <Clock size={16} className="mx-auto text-slate-300" />
+                                <Clock size={14} className="mx-auto text-slate-300" />
                               ) : passed ? (
                                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600">
-                                  <CheckCircle size={14} /> {score}%
+                                  <CheckCircle size={13} /> {score}%
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
-                                  <XCircle size={14} /> {score}%
+                                  <XCircle size={13} /> {score}%
                                 </span>
                               )}
                             </td>
                           );
                         })}
+                        <td className="text-center px-3 py-3 text-sm font-semibold text-green-600">{attPresent || '-'}</td>
+                        <td className="text-center px-3 py-3 text-sm font-semibold text-yellow-600">{attLate || '-'}</td>
+                        <td className="text-center px-3 py-3 text-sm font-semibold text-red-500">{attAbsent || '-'}</td>
                         <td className="text-center px-3 py-3">
                           {allPassed
                             ? <span className="text-xs font-bold text-green-600">✓ 완료</span>

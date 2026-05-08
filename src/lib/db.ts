@@ -334,6 +334,25 @@ export async function deleteAttendance(studentName: string, date: string): Promi
   if (error) throw error;
 }
 
+export async function fetchAttendanceByWeek(): Promise<AttendanceRecord[]> {
+  const weekStart = getWeekStart();
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .gte('date', weekStart.toISOString().slice(0, 10))
+    .lte('date', weekEnd.toISOString().slice(0, 10));
+  if (error) throw error;
+  return (data ?? []).map(row => ({
+    id: row.id as string,
+    studentName: row.student_name as string,
+    date: row.date as string,
+    status: row.status as AttendanceRecord['status'],
+    note: (row.note as string) ?? '',
+  }));
+}
+
 export async function fetchAttendanceByMonth(year: number, month: number): Promise<AttendanceRecord[]> {
   const start = `${year}-${String(month).padStart(2, '0')}-01`;
   const lastDay = new Date(year, month, 0).getDate();
