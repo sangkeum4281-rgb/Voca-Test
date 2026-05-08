@@ -95,16 +95,17 @@ function isConjugation(s: string): boolean {
 function cleanEnglish(s: string): string {
   return s
     .replace(/^[□■○●◇◆☐☑✓✗\s\d.]+/, '')       // leading 제거
-    .replace(/[^a-zA-Z0-9\s\-'~.]/g, '')           // 비허용 문자 제거 (먼저!)
-    .replace(/\s+[a-z]{1,8}\.\s*~?\s*$/i, '')      // 뒤 품사(n. v. adv. interj. 등) + trailing ~ 제거
+    .replace(/[^a-zA-Z0-9\s\-'~.]/g, ' ')          // 비허용 문자 → 공백 (+ 등 보존)
+    .replace(/\s+/g, ' ')                            // 연속 공백 정리
+    .replace(/(^\s*|\s+)[a-z]{1,8}\.\s*~?\s*$/i, '') // 뒤 품사 + trailing ~ 제거
     .trim();
 }
 
-// 한글 뜻 정리 — 대문자(A·B), ~, 괄호, [] 허용
+// 한글 뜻 정리 — 대문자(A·B), ~, 괄호, [], ; 허용
 function cleanKorean(s: string): string {
   return s
-    .replace(/^\(?[a-z]{1,8}\.\)?\s*/i, '')         // 앞 품사 제거
-    .replace(/[^가-힣A-Z\s(),·~\[\]]/g, '')         // 한글·허용기호 외 제거
+    .replace(/^\(?[a-z]{1,8}\.\)?\s*/i, '')           // 앞 품사 제거
+    .replace(/[^가-힣A-Z\s(),·~\[\];]/g, '')          // 한글·허용기호 외 제거
     .trim();
 }
 
@@ -131,7 +132,7 @@ function findSplitPoint(s: string): number {
 export function parseWords(text: string): Partial<Word>[] {
   const rawLines = text.trim().split('\n').filter(Boolean);
 
-  // 연속 줄 병합: 영어만 있는 줄 + 바로 다음 한글 줄 → 하나로 합침
+  // 연속 줄 병합
   const lines: string[] = [];
   let i = 0;
   while (i < rawLines.length) {
@@ -139,6 +140,14 @@ export function parseWords(text: string): Partial<Word>[] {
     const hasKorean = /[가-힣]/.test(cur);
     const hasEnglish = /[a-zA-Z]/.test(cur);
 
+    // ① 품사 연속줄: "a. 어려운, 힘든" 처럼 품사+한글로 시작 → 이전 줄에 붙임
+    if (/^[a-z]{1,8}\.\s+[가-힣~]/i.test(cur) && lines.length > 0) {
+      lines[lines.length - 1] += ' ' + cur;
+      i++;
+      continue;
+    }
+
+    // ② 영어만 있는 줄 + 다음이 한글 줄 → 합침
     if (hasEnglish && !hasKorean && !isConjugation(cur) && i + 1 < rawLines.length) {
       const next = rawLines[i + 1].trim();
       const nextKorean = /[가-힣]/.test(next);
@@ -187,7 +196,8 @@ export function parseWords(text: string): Partial<Word>[] {
       }
     }
 
-    if (!english || !/[a-zA-Z]/.test(english)) continue;
+    // 영어가 없거나 품사 약자만 남은 경우 스킵 (a. n. v. adv. 등)
+    if (!english || !/[a-zA-Z]/.test(english) || /^[a-z]{1,8}\.?$/.test(english)) continue;
     result.push({ english, korean, synonyms, antonyms, example });
   }
   return result;
