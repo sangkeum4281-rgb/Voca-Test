@@ -41,7 +41,8 @@ function mapList(row: Record<string, unknown>): WordList {
 // ── word lists ────────────────────────────────────────────
 
 function sortWordLists(lists: WordList[]): WordList[] {
-  const schoolLevel = (title: string) => /고등|고교|고1|고2|고3/.test(title) ? 0 : 1;
+  // 고등학교 판별: "고등", "고교", "XX고 N학년" 패턴 모두 포함
+  const schoolLevel = (title: string) => /고등|고교|고\s*\d*\s*학년/.test(title) ? 0 : 1;
   return [...lists].sort((a, b) => {
     const levelDiff = schoolLevel(a.title) - schoolLevel(b.title);
     if (levelDiff !== 0) return levelDiff;
