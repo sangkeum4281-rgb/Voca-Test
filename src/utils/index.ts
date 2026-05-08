@@ -85,25 +85,70 @@ export function getMasteryColor(level: number): string {
   return ['bg-slate-200 text-slate-600', 'bg-yellow-100 text-yellow-700', 'bg-blue-100 text-blue-700', 'bg-green-100 text-green-700'][level] ?? 'bg-slate-200 text-slate-600';
 }
 
-// 앞의 체크박스·번호·기호 제거 후 영어 추출
+// 체크박스·번호 제거 후 영어 추출
 function cleanEnglish(s: string): string {
   return s
-    .replace(/^[□■○●◇◆☐☑✓✗\s\d.]+/, '')           // 앞 체크박스·번호 제거
-    .replace(/\s+\(?[nvadjadjprepconj]+\.\)?(\s+\(?[nvadjadjprepconj]+\.\)?)*\s*$/i, '') // 뒤 품사 제거 (n. v. adv. a. 등)
-    .replace(/[^a-zA-Z0-9\s\-'~.]/g, '')               // 영문·숫자·허용기호 외 제거
+    .replace(/^[□■○●◇◆☐☑✓✗\s\d.]+/, '')
+    .replace(/\s+\(?[nvadjadjprepconj]+\.\)?(\s+\(?[nvadjadjprepconj]+\.\)?)*\s*$/i, '')
+    .replace(/[^a-zA-Z0-9\s\-'~.]/g, '')
     .trim();
 }
 
-// 한글 뜻 정리 (한글 + 공백 + 괄호 + 쉼표 + ~ 허용)
+// 한글 뜻 정리 — 대문자(A, B 같은 대입 표현)·괄호·[]·~ 허용
 function cleanKorean(s: string): string {
   return s
-    .replace(/^\(?[nvadjadjprepconj]+\.\)?\s*/i, '')    // 앞 품사 제거
-    .replace(/[^가-힣\s(),·~]/g, '')                    // 한글·허용기호 외 제거
+    .replace(/^\(?[nvadjadjprepconj]+\.\)?\s*/i, '')
+    .replace(/[^가-힣A-Z\s(),·~\[\]]/g, '')
     .trim();
+}
+
+// 한글 시작 지점을 찾되, 바로 앞에 단독 대문자(A, B)가 있으면 그 앞으로 분리
+function findSplitPoint(s: string): number {
+  const korIdx = s.search(/[가-힣]/);
+  if (korIdx <= 0) return korIdx;
+
+  // 한글 바로 앞 공백 건너뛰기
+  let split = korIdx;
+  let look = split - 1;
+  while (look >= 0 && s[look] === ' ') look--;
+
+  // 단독 대문자(A~Z)면 Korean 쪽으로 포함
+  if (look >= 0 && /[A-Z]/.test(s[look])) {
+    const prev = look > 0 ? s[look - 1] : ' ';
+    if (prev === ' ' || look === 0) {
+      split = look;
+      while (split > 0 && s[split - 1] === ' ') split--;
+    }
+  }
+  return split;
 }
 
 export function parseWords(text: string): Partial<Word>[] {
-  const lines = text.trim().split('\n').filter(Boolean);
+  const rawLines = text.trim().split('\n').filter(Boolean);
+
+  // 연속 줄 병합: 영어만 있는 줄 + 바로 다음 한글 줄 → 하나로 합침
+  // e.g. "□ provide A with B" + "A에게 B를 제공하다" → 한 줄로
+  const lines: string[] = [];
+  let i = 0;
+  while (i < rawLines.length) {
+    const cur = rawLines[i].trim();
+    const hasKorean = /[가-힣]/.test(cur);
+    const hasEnglish = /[a-zA-Z]/.test(cur);
+
+    if (hasEnglish && !hasKorean && i + 1 < rawLines.length) {
+      const next = rawLines[i + 1].trim();
+      const nextKorean = /[가-힣]/.test(next);
+      const nextNewEntry = /^[□■○●◇◆☐☑✓✗]/.test(next);
+      if (nextKorean && !nextNewEntry) {
+        lines.push(cur + ' ' + next);
+        i += 2;
+        continue;
+      }
+    }
+    lines.push(cur);
+    i++;
+  }
+
   const result: Partial<Word>[] = [];
 
   for (const line of lines) {
@@ -117,29 +162,25 @@ export function parseWords(text: string): Partial<Word>[] {
     let example = '';
 
     if (raw.includes('\t')) {
-      // 탭 구분 명시 형식
       const parts = raw.split('\t').map(p => p.trim().replace(/^"|"$/g, ''));
-      english = cleanEnglish(parts[0] ?? '');
-      korean  = cleanKorean(parts[1] ?? '');
+      english  = cleanEnglish(parts[0] ?? '');
+      korean   = cleanKorean(parts[1] ?? '');
       synonyms = parts[2] ? parts[2].split('/').map(s => cleanEnglish(s)).filter(Boolean) : [];
       antonyms = parts[3] ? parts[3].split('/').map(s => cleanEnglish(s)).filter(Boolean) : [];
       example  = parts[4] ?? '';
     } else {
-      // 교재 복붙 형식: 한글이 시작되는 지점을 기준으로 분리
-      const korIdx = raw.search(/[가-힣]/);
-      if (korIdx > 0) {
-        english = cleanEnglish(raw.slice(0, korIdx));
-        korean  = cleanKorean(raw.slice(korIdx));
-      } else if (korIdx === -1) {
-        // 한글 없음 → 영어만 있는 줄 (스킵하거나 영어만 저장)
+      const split = findSplitPoint(raw);
+      if (split > 0) {
+        english = cleanEnglish(raw.slice(0, split));
+        korean  = cleanKorean(raw.slice(split));
+      } else if (split === -1) {
         english = cleanEnglish(raw);
       } else {
-        continue; // 한글로 시작하는 줄 스킵
+        continue;
       }
     }
 
     if (!english || !/[a-zA-Z]/.test(english)) continue;
-
     result.push({ english, korean, synonyms, antonyms, example });
   }
   return result;
