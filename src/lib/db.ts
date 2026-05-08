@@ -41,7 +41,10 @@ function mapList(row: Record<string, unknown>): WordList {
 // ── word lists ────────────────────────────────────────────
 
 function sortWordLists(lists: WordList[]): WordList[] {
+  const schoolLevel = (title: string) => /고등|고교|고1|고2|고3/.test(title) ? 0 : 1;
   return [...lists].sort((a, b) => {
+    const levelDiff = schoolLevel(a.title) - schoolLevel(b.title);
+    if (levelDiff !== 0) return levelDiff;
     const gradeA = parseInt(a.title.match(/(\d)\s*학년/)?.[1] ?? '9');
     const gradeB = parseInt(b.title.match(/(\d)\s*학년/)?.[1] ?? '9');
     const schoolA = a.title.replace(/\s*\d+\s*학년.*$/, '').trim();
