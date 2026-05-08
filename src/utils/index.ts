@@ -163,14 +163,21 @@ export function parseWords(text: string): Partial<Word>[] {
     const hasKorean = /[가-힣]/.test(cur);
     const hasEnglish = /[a-zA-Z]/.test(cur);
 
-    // ① 품사 연속줄: "a. 어려운, 힘든" 처럼 품사+한글로 시작 → 이전 줄에 붙임
+    // ① 한글만 있는 줄(영어 없음) → 이전 줄 의미 연속 ("고대하다", "하다", "이루다" 등)
+    if (!hasEnglish && hasKorean && lines.length > 0) {
+      lines[lines.length - 1] += ' ' + cur;
+      i++;
+      continue;
+    }
+
+    // ② 품사 연속줄: "a. 어려운, 힘든" 처럼 품사+한글로 시작 → 이전 줄에 붙임
     if (/^[a-z]{1,8}\.\s+[가-힣~]/i.test(cur) && lines.length > 0) {
       lines[lines.length - 1] += ' ' + cur;
       i++;
       continue;
     }
 
-    // ② 영어만 있는 줄 + 다음이 한글 줄 → 합침
+    // ③ 영어만 있는 줄 + 다음이 한글 줄 → 합침
     if (hasEnglish && !hasKorean && !isConjugation(cur) && i + 1 < rawLines.length) {
       const next = rawLines[i + 1].trim();
       const nextKorean = /[가-힣]/.test(next);
