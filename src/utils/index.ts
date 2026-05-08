@@ -116,8 +116,9 @@ function cleanEnglish(s: string): string {
 // 한글 뜻 정리 — 대문자(A·B), ~, 괄호, [], ; 허용
 function cleanKorean(s: string): string {
   return s
-    .replace(/^\(?[a-z]{1,8}\.\)?\s*/i, '')           // 앞 품사 제거
-    .replace(/[^가-힣A-Z\s(),·~\[\];]/g, '')          // 한글·허용기호 외 제거
+    .replace(/^\(?[a-z]{1,8}\.\)?\s*/i, '')                        // 앞 품사 제거
+    .replace(/^(부정사|동명사|현재분사|과거분사|to부정사)\s*/,'')   // 문법 주석 제거
+    .replace(/[^가-힣A-Z\s(),·~\[\];]/g, '')                       // 한글·허용기호 외 제거
     .trim();
 }
 
