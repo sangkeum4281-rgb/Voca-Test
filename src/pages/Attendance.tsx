@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
   fetchStudents, fetchAttendanceByDate,
-  fetchAttendanceByMonth, upsertAttendance, deleteAttendance,
+  fetchAttendanceByMonth, fetchAttendanceByWeek,
+  upsertAttendance, deleteAttendance,
   type Student, type AttendanceRecord,
 } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader, ChevronLeft, ChevronRight, RotateCcw, CalendarDays, CalendarCheck } from 'lucide-react';
+import { Loader, ChevronLeft, ChevronRight, RotateCcw, CalendarDays, CalendarCheck, CalendarRange } from 'lucide-react';
 
 const STATUS_CONFIG = {
   present: { label: '출석', short: '출', color: 'bg-green-100 text-green-700 border-green-300', cell: 'bg-green-100 text-green-700' },
@@ -13,7 +14,9 @@ const STATUS_CONFIG = {
   absent:  { label: '결석', short: '결', color: 'bg-red-100 text-red-700 border-red-300', cell: 'bg-red-100 text-red-700' },
 } as const;
 
-type TeacherTab = 'daily' | 'monthly';
+const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
+
+type TeacherTab = 'daily' | 'weekly' | 'monthly';
 
 function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
 
@@ -30,6 +33,11 @@ export default function Attendance() {
   const [date, setDate] = useState(toDateStr(new Date()));
   const [records, setRecords] = useState<Record<string, AttendanceRecord['status'] | null>>({});
   const [saving, setSaving] = useState<string | null>(null);
+
+  // 주별
+  const [weekRecords, setWeekRecords] = useState<AttendanceRecord[]>([]);
+  const [weekLoading, setWeekLoading] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0); // 0=이번주, -1=지난주 ...
 
   // 월별
   const now = new Date();
@@ -64,6 +72,11 @@ export default function Attendance() {
   }, [date, selectedClass, teacherTab]);
 
   useEffect(() => {
+    if (!isTeacher || teacherTab !== 'weekly') return;
+    loadWeekly();
+  }, [teacherTab, weekOffset]);
+
+  useEffect(() => {
     if (!isTeacher || teacherTab !== 'monthly') return;
     loadMonthly();
   }, [year, month, teacherTab]);
@@ -73,6 +86,36 @@ export default function Attendance() {
     const map: Record<string, AttendanceRecord['status'] | null> = {};
     for (const r of data) map[r.studentName] = r.status;
     setRecords(map);
+  };
+
+  const getWeekDates = (offset: number): Date[] => {
+    const monday = new Date();
+    const day = monday.getDay();
+    monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1) + offset * 7);
+    monday.setHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  };
+
+  const loadWeekly = async () => {
+    setWeekLoading(true);
+    // fetchAttendanceByWeek는 이번 주 고정이라, offset 있으면 월별로 대체
+    if (weekOffset === 0) {
+      const data = await fetchAttendanceByWeek();
+      setWeekRecords(data);
+    } else {
+      const dates = getWeekDates(weekOffset);
+      const y = dates[0].getFullYear();
+      const m = dates[0].getMonth() + 1;
+      const data = await fetchAttendanceByMonth(y, m);
+      // 해당 주 날짜만 필터
+      const dateStrs = new Set(dates.map(d => toDateStr(d)));
+      setWeekRecords(data.filter(r => dateStrs.has(r.date)));
+    }
+    setWeekLoading(false);
   };
 
   const loadMonthly = async () => {
@@ -221,15 +264,21 @@ export default function Attendance() {
       <h1 className="text-2xl font-bold text-slate-800">출결 관리</h1>
 
       {/* 탭 */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-slate-200 overflow-x-auto">
         <button onClick={() => setTeacherTab('daily')}
-          className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
             teacherTab === 'daily' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}>
           <CalendarCheck size={15} /> 일별 출결
         </button>
+        <button onClick={() => setTeacherTab('weekly')}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+            teacherTab === 'weekly' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <CalendarRange size={15} /> 주별 현황
+        </button>
         <button onClick={() => setTeacherTab('monthly')}
-          className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
             teacherTab === 'monthly' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}>
           <CalendarDays size={15} /> 월별 현황
@@ -310,6 +359,112 @@ export default function Attendance() {
           )}
         </div>
       )}
+
+      {/* ── 주별 탭 ── */}
+      {teacherTab === 'weekly' && (() => {
+        const weekDates = getWeekDates(weekOffset);
+        const weekStart = weekDates[0];
+        const weekEnd   = weekDates[6];
+        const weekLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()} ~ ${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+        const weekDateStrs = weekDates.map(d => toDateStr(d));
+
+        const weeklyByStudent: Record<string, Record<string, AttendanceRecord['status']>> = {};
+        for (const r of weekRecords) {
+          if (!weeklyByStudent[r.studentName]) weeklyByStudent[r.studentName] = {};
+          weeklyByStudent[r.studentName][r.date] = r.status;
+        }
+
+        return (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="flex flex-wrap gap-2">
+                {classes.map(c => (
+                  <button key={c} onClick={() => setSelectedClass(c)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    }`}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 ml-auto">
+                <button onClick={() => setWeekOffset(o => o - 1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronLeft size={16} /></button>
+                <p className="px-3 font-semibold text-slate-700 min-w-[130px] text-center text-sm">{weekLabel}</p>
+                <button onClick={() => setWeekOffset(o => Math.min(0, o + 1))} disabled={weekOffset === 0}
+                  className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30"><ChevronRight size={16} /></button>
+                <button onClick={() => setWeekOffset(0)} disabled={weekOffset === 0}
+                  className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 text-slate-400"><RotateCcw size={14} /></button>
+              </div>
+            </div>
+
+            {/* 범례 */}
+            <div className="flex gap-3 text-xs">
+              {(['present','late','absent'] as const).map(s => (
+                <span key={s} className={`px-2 py-1 rounded font-semibold ${STATUS_CONFIG[s].cell}`}>
+                  {STATUS_CONFIG[s].short} = {STATUS_CONFIG[s].label}
+                </span>
+              ))}
+            </div>
+
+            {weekLoading ? (
+              <div className="flex justify-center py-12"><Loader size={24} className="animate-spin text-indigo-400" /></div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <table className="text-sm border-collapse" style={{ minWidth: '520px' }}>
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="sticky left-0 bg-slate-50 text-left px-4 py-3 font-semibold text-slate-600 border-r border-slate-200 min-w-[90px]">이름</th>
+                      {weekDates.map((d, i) => {
+                        const isToday = toDateStr(d) === toDateStr(new Date());
+                        return (
+                          <th key={i} className={`text-center px-3 py-3 font-semibold text-xs ${
+                            d.getDay() === 0 ? 'text-red-400' : d.getDay() === 6 ? 'text-blue-400' : isToday ? 'text-indigo-600' : 'text-slate-500'
+                          }`}>
+                            <div>{WEEKDAYS[i]}</div>
+                            <div className={`text-[11px] ${isToday ? 'font-bold text-indigo-600' : 'font-normal'}`}>{d.getDate()}</div>
+                          </th>
+                        );
+                      })}
+                      <th className="px-3 py-3 font-semibold text-green-600 text-xs text-center">출</th>
+                      <th className="px-3 py-3 font-semibold text-yellow-600 text-xs text-center">지</th>
+                      <th className="px-3 py-3 font-semibold text-red-500 text-xs text-center">결</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filtered.map(student => {
+                      const sMap = weeklyByStudent[student.name] ?? {};
+                      const pCnt = Object.values(sMap).filter(v => v === 'present').length;
+                      const lCnt = Object.values(sMap).filter(v => v === 'late').length;
+                      const aCnt = Object.values(sMap).filter(v => v === 'absent').length;
+                      return (
+                        <tr key={student.id} className="hover:bg-slate-50">
+                          <td className="sticky left-0 bg-white hover:bg-slate-50 px-4 py-2.5 font-medium text-slate-800 border-r border-slate-100 text-sm">{student.name}</td>
+                          {weekDateStrs.map(dateStr => {
+                            const status = sMap[dateStr];
+                            const cfg = status ? STATUS_CONFIG[status] : null;
+                            return (
+                              <td key={dateStr} className="text-center px-1 py-2.5">
+                                {cfg && (
+                                  <span className={`inline-block w-7 h-7 rounded-lg text-xs font-bold leading-7 ${cfg.cell}`}>
+                                    {cfg.short}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2.5 text-center font-bold text-green-600 text-sm">{pCnt || '-'}</td>
+                          <td className="px-3 py-2.5 text-center font-bold text-yellow-600 text-sm">{lCnt || '-'}</td>
+                          <td className="px-3 py-2.5 text-center font-bold text-red-500 text-sm">{aCnt || '-'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── 월별 탭 ── */}
       {teacherTab === 'monthly' && (
