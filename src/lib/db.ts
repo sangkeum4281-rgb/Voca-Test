@@ -40,13 +40,25 @@ function mapList(row: Record<string, unknown>): WordList {
 
 // ── word lists ────────────────────────────────────────────
 
+function sortWordLists(lists: WordList[]): WordList[] {
+  return [...lists].sort((a, b) => {
+    const gradeA = parseInt(a.title.match(/(\d)\s*학년/)?.[1] ?? '9');
+    const gradeB = parseInt(b.title.match(/(\d)\s*학년/)?.[1] ?? '9');
+    const schoolA = a.title.replace(/\s*\d+\s*학년.*$/, '').trim();
+    const schoolB = b.title.replace(/\s*\d+\s*학년.*$/, '').trim();
+    const schoolCmp = schoolA.localeCompare(schoolB, 'ko');
+    if (schoolCmp !== 0) return schoolCmp;
+    return gradeA - gradeB;
+  });
+}
+
 export async function fetchWordLists(): Promise<WordList[]> {
   const { data, error } = await supabase
     .from('word_lists')
     .select('*, words(*)')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: true });
   if (error) throw error;
-  return (data ?? []).map(mapList);
+  return sortWordLists((data ?? []).map(mapList));
 }
 
 export async function fetchWordList(id: string): Promise<WordList | null> {
