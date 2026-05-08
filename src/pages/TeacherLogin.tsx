@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn } from 'lucide-react';
 
+const DOMAIN = '@choegang.kr';
+
 export default function TeacherLogin() {
   const { signIn, isTeacher } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,9 +22,10 @@ export default function TeacherLogin() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    const email = username.trim() + DOMAIN;
     const err = await signIn(email, password);
     if (err) {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.');
+      setError('아이디 또는 비밀번호가 올바르지 않습니다.');
     } else {
       navigate('/');
     }
@@ -37,17 +40,18 @@ export default function TeacherLogin() {
             <LogIn size={22} className="text-indigo-600" />
           </div>
           <h1 className="text-xl font-bold text-slate-800">선생님 로그인</h1>
-          <p className="text-sm text-slate-400 mt-1">단어장 관리를 위한 선생님 전용 화면</p>
+          <p className="text-sm text-slate-400 mt-1">선생님 전용 관리 화면</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
             className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="이메일"
+            type="text"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder="아이디"
             required
             autoFocus
+            autoComplete="username"
           />
           <input
             className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
@@ -56,11 +60,12 @@ export default function TeacherLogin() {
             onChange={e => setPassword(e.target.value)}
             placeholder="비밀번호"
             required
+            autoComplete="current-password"
           />
           {error && <p className="text-sm text-red-500">{error}</p>}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !username.trim()}
             className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
           >
             {loading ? '로그인 중...' : '로그인'}
