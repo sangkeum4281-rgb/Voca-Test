@@ -220,19 +220,34 @@ export interface Student {
   createdAt: string;
 }
 
+const isHighSchool = (cls: string) => /고등|고교|고\s*\d*\s*학년/.test(cls);
+
+function sortStudents(students: Student[]): Student[] {
+  return [...students].sort((a, b) => {
+    // 중학교 먼저, 고등학교 아래
+    const levelDiff = (isHighSchool(a.className) ? 1 : 0) - (isHighSchool(b.className) ? 1 : 0);
+    if (levelDiff !== 0) return levelDiff;
+    const gradeA = parseInt(a.className.match(/(\d)\s*학년/)?.[1] ?? '9');
+    const gradeB = parseInt(b.className.match(/(\d)\s*학년/)?.[1] ?? '9');
+    const schoolA = a.className.replace(/\s*\d+\s*학년.*$/, '').trim();
+    const schoolB = b.className.replace(/\s*\d+\s*학년.*$/, '').trim();
+    const schoolCmp = schoolA.localeCompare(schoolB, 'ko');
+    if (schoolCmp !== 0) return schoolCmp;
+    return gradeA - gradeB;
+  });
+}
+
 export async function fetchStudents(): Promise<Student[]> {
   const { data, error } = await supabase
     .from('students')
-    .select('*')
-    .order('class_name')
-    .order('name');
+    .select('*');
   if (error) throw error;
-  return (data ?? []).map(row => ({
+  return sortStudents((data ?? []).map(row => ({
     id: row.id as string,
     name: row.name as string,
     className: (row.class_name as string) ?? '',
     createdAt: row.created_at as string,
-  }));
+  })));
 }
 
 export async function addStudent(name: string, className: string): Promise<Student> {
