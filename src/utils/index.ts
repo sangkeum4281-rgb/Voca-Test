@@ -226,8 +226,9 @@ export function parseWords(text: string): Partial<Word>[] {
       }
     }
 
-    // 품사 약자만 남은 경우 스킵 (a. n. v. adv. 등)
-    if (!english || !/[a-zA-Z]/.test(english) || /^[a-z]{1,8}\.?$/.test(english)) continue;
+    // 품사 약자만 남은 경우 스킵 (n. v. a. adv. 등 — 실제 단어는 건드리지 않음)
+    if (!english || !/[a-zA-Z]/.test(english)) continue;
+    if (/^(n|v|a|adj|adv|prep|conj|interj|pron|det)\.?$/i.test(english)) continue;
     // 섹션 헤더 스킵 (READING, CONVERSATION 등)
     if (isSectionHeader(english)) continue;
     result.push({ english, korean, synonyms, antonyms, example });
