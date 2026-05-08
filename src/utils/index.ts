@@ -85,35 +85,40 @@ export function getMasteryColor(level: number): string {
   return ['bg-slate-200 text-slate-600', 'bg-yellow-100 text-yellow-700', 'bg-blue-100 text-blue-700', 'bg-green-100 text-green-700'][level] ?? 'bg-slate-200 text-slate-600';
 }
 
+// 3단 변화 패턴 감지: run-ran-run, (bring-brought-brought) 등
+function isConjugation(s: string): boolean {
+  const stripped = s.replace(/^[□■○●◇◆☐☑✓✗\s]+/, '').replace(/[()]/g, '').trim();
+  return /^[a-zA-Z]+(-[a-zA-Z]+){2,}$/.test(stripped.replace(/\s/g, ''));
+}
+
 // 체크박스·번호 제거 후 영어 추출
 function cleanEnglish(s: string): string {
   return s
-    .replace(/^[□■○●◇◆☐☑✓✗\s\d.]+/, '')
-    .replace(/\s+\(?[nvadjadjprepconj]+\.\)?(\s+\(?[nvadjadjprepconj]+\.\)?)*\s*$/i, '')
-    .replace(/[^a-zA-Z0-9\s\-'~.]/g, '')
+    .replace(/^[□■○●◇◆☐☑✓✗\s\d.]+/, '')       // leading 제거
+    .replace(/[^a-zA-Z0-9\s\-'~.]/g, '')           // 비허용 문자 제거 (먼저!)
+    .replace(/\s+[a-z]{1,8}\.\s*~?\s*$/i, '')      // 뒤 품사(n. v. adv. interj. 등) + trailing ~ 제거
     .trim();
 }
 
-// 한글 뜻 정리 — 대문자(A, B 같은 대입 표현)·괄호·[]·~ 허용
+// 한글 뜻 정리 — 대문자(A·B), ~, 괄호, [] 허용
 function cleanKorean(s: string): string {
   return s
-    .replace(/^\(?[nvadjadjprepconj]+\.\)?\s*/i, '')
-    .replace(/[^가-힣A-Z\s(),·~\[\]]/g, '')
+    .replace(/^\(?[a-z]{1,8}\.\)?\s*/i, '')         // 앞 품사 제거
+    .replace(/[^가-힣A-Z\s(),·~\[\]]/g, '')         // 한글·허용기호 외 제거
     .trim();
 }
 
-// 한글 시작 지점을 찾되, 바로 앞에 단독 대문자(A, B)가 있으면 그 앞으로 분리
+// 분리점: ~ 또는 단독 대문자가 한글 바로 앞에 있으면 한글 쪽으로 포함
 function findSplitPoint(s: string): number {
   const korIdx = s.search(/[가-힣]/);
   if (korIdx <= 0) return korIdx;
 
-  // 한글 바로 앞 공백 건너뛰기
   let split = korIdx;
   let look = split - 1;
   while (look >= 0 && s[look] === ' ') look--;
 
-  // 단독 대문자(A~Z)면 Korean 쪽으로 포함
-  if (look >= 0 && /[A-Z]/.test(s[look])) {
+  // 바로 앞이 ~ 이거나 단독 대문자(A, B)면 Korean 쪽으로
+  if (look >= 0 && (s[look] === '~' || /[A-Z]/.test(s[look]))) {
     const prev = look > 0 ? s[look - 1] : ' ';
     if (prev === ' ' || look === 0) {
       split = look;
@@ -127,7 +132,6 @@ export function parseWords(text: string): Partial<Word>[] {
   const rawLines = text.trim().split('\n').filter(Boolean);
 
   // 연속 줄 병합: 영어만 있는 줄 + 바로 다음 한글 줄 → 하나로 합침
-  // e.g. "□ provide A with B" + "A에게 B를 제공하다" → 한 줄로
   const lines: string[] = [];
   let i = 0;
   while (i < rawLines.length) {
@@ -135,7 +139,7 @@ export function parseWords(text: string): Partial<Word>[] {
     const hasKorean = /[가-힣]/.test(cur);
     const hasEnglish = /[a-zA-Z]/.test(cur);
 
-    if (hasEnglish && !hasKorean && i + 1 < rawLines.length) {
+    if (hasEnglish && !hasKorean && !isConjugation(cur) && i + 1 < rawLines.length) {
       const next = rawLines[i + 1].trim();
       const nextKorean = /[가-힣]/.test(next);
       const nextNewEntry = /^[□■○●◇◆☐☑✓✗]/.test(next);
@@ -154,6 +158,9 @@ export function parseWords(text: string): Partial<Word>[] {
   for (const line of lines) {
     const raw = line.trim();
     if (!raw || raw.startsWith('#')) continue;
+
+    // 3단 변화 스킵
+    if (isConjugation(raw)) continue;
 
     let english = '';
     let korean = '';
