@@ -295,7 +295,13 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
 
     const apiKey    = import.meta.env.VITE_SOLAPI_API_KEY as string;
     const apiSecret = import.meta.env.VITE_SOLAPI_API_SECRET as string;
-    const from      = (import.meta.env.VITE_SENDER_PHONE as string).replace(/[^0-9]/g, '');
+    const senderRaw = import.meta.env.VITE_SENDER_PHONE as string;
+
+    if (!apiKey || !apiSecret || !senderRaw) {
+      return { success: false, error: 'Vercel 환경변수(VITE_SOLAPI_API_KEY 등)가 설정되지 않았습니다' };
+    }
+
+    const from = senderRaw.replace(/[^0-9]/g, '');
 
     const statusText = status === 'late' ? '지각' : '결석';
     const dateStr    = new Date(date + 'T00:00:00+09:00')
