@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   fetchWordLists, fetchAnnouncements, fetchQna,
-  fetchAttendanceByDate, fetchStudents,
+  fetchAttendanceByDate, fetchStudents, sendAttendanceSms,
   type Announcement, type QnaItem, type AttendanceRecord, type Student,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users } from 'lucide-react';
+import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send } from 'lucide-react';
 
 function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
 
@@ -19,6 +19,8 @@ export default function Home() {
   const [todayAtt, setTodayAtt] = useState<AttendanceRecord[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sendingMap, setSendingMap] = useState<Record<string, boolean>>({});
+  const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const today = toDateStr(new Date());
@@ -48,7 +50,17 @@ export default function Home() {
   const late    = todayAtt.filter(r => r.status === 'late').length;
   const absent  = todayAtt.filter(r => r.status === 'absent').length;
 
-  // 반별 결석자 그룹
+  const today = toDateStr(new Date());
+
+  const handleSendSms = async (studentName: string, status: 'absent' | 'late') => {
+    const key = `${studentName}-${status}`;
+    setSendingMap(p => ({ ...p, [key]: true }));
+    await sendAttendanceSms(studentName, status, today);
+    setSendingMap(p => ({ ...p, [key]: false }));
+    setSentMap(p => ({ ...p, [key]: true }));
+  };
+
+  // 반별 결석·지각자 그룹
   const classes = [...new Set(students.map(s => s.className).filter(Boolean))].sort();
   const absentByClass = classes.map(cls => {
     const classStudents = students.filter(s => s.className === cls);
@@ -104,16 +116,42 @@ export default function Home() {
               <div key={cls} className="px-5 py-3">
                 <p className="text-xs font-semibold text-slate-500 mb-2">{cls}</p>
                 <div className="flex flex-wrap gap-2">
-                  {absentNames.map(name => (
-                    <span key={name} className="inline-flex items-center gap-1 text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded-full">
-                      <XCircle size={11} /> {name}
-                    </span>
-                  ))}
-                  {lateNames.map(name => (
-                    <span key={name} className="inline-flex items-center gap-1 text-xs font-medium bg-yellow-50 text-yellow-600 border border-yellow-200 px-2.5 py-1 rounded-full">
-                      <Clock size={11} /> {name}
-                    </span>
-                  ))}
+                  {absentNames.map(name => {
+                    const key = `${name}-absent`;
+                    const sending = sendingMap[key];
+                    const sent = sentMap[key];
+                    const hasPhone = students.find(s => s.name === name)?.parentPhone;
+                    return (
+                      <div key={name} className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">
+                        <XCircle size={11} className="text-red-500" />
+                        <span className="text-xs font-medium text-red-600">{name}</span>
+                        {isTeacher && hasPhone && (
+                          <button onClick={() => handleSendSms(name, 'absent')} disabled={sending || sent}
+                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${sent ? 'bg-green-100 text-green-600' : 'bg-red-200 text-red-700 hover:bg-red-300'}`}>
+                            {sending ? '…' : sent ? '발송됨' : <Send size={9} />}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {lateNames.map(name => {
+                    const key = `${name}-late`;
+                    const sending = sendingMap[key];
+                    const sent = sentMap[key];
+                    const hasPhone = students.find(s => s.name === name)?.parentPhone;
+                    return (
+                      <div key={name} className="inline-flex items-center gap-1.5 bg-yellow-50 border border-yellow-200 px-2.5 py-1 rounded-full">
+                        <Clock size={11} className="text-yellow-500" />
+                        <span className="text-xs font-medium text-yellow-600">{name}</span>
+                        {isTeacher && hasPhone && (
+                          <button onClick={() => handleSendSms(name, 'late')} disabled={sending || sent}
+                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${sent ? 'bg-green-100 text-green-600' : 'bg-yellow-200 text-yellow-700 hover:bg-yellow-300'}`}>
+                            {sending ? '…' : sent ? '발송됨' : <Send size={9} />}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
