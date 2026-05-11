@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TestType } from '../types';
 import {
-  fetchStudents, addStudent, deleteStudent,
+  fetchStudents, addStudent, deleteStudent, updateStudentPhone,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
   type Student, type AttendanceRecord,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil } from 'lucide-react';
 
 type Tab = 'roster' | 'weekly';
 
@@ -45,8 +45,11 @@ export default function Students() {
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [classInput, setClassInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
   const [adding, setAdding] = useState(false);
   const [collapsedClasses, setCollapsedClasses] = useState<Set<string>>(new Set());
+  const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null);
+  const [editingPhoneVal, setEditingPhoneVal] = useState('');
 
   const toggleClass = (cls: string) => {
     setCollapsedClasses(prev => {
@@ -72,12 +75,33 @@ export default function Students() {
     if (!nameInput.trim() || adding) return;
     setAdding(true);
     try {
-      const s = await addStudent(nameInput.trim(), classInput.trim());
-      setStudents(prev => [...prev, s].sort((a, b) => a.className.localeCompare(b.className) || a.name.localeCompare(b.name)));
+      const s = await addStudent(nameInput.trim(), classInput.trim(), phoneInput.trim());
+      setStudents(prev => sortStudents([...prev, s]));
       setNameInput('');
+      setPhoneInput('');
     } finally {
       setAdding(false);
     }
+  };
+
+  const handleSavePhone = async (id: string) => {
+    await updateStudentPhone(id, editingPhoneVal.trim());
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, parentPhone: editingPhoneVal.trim() } : s));
+    setEditingPhoneId(null);
+  };
+
+  // sortStudents를 컴포넌트 내에서도 쓸 수 있도록
+  const sortStudents = (list: Student[]) => {
+    const isHigh = (cls: string) => /고등|고교|고\s*\d*\s*학년/.test(cls);
+    return [...list].sort((a, b) => {
+      const ld = (isHigh(a.className) ? 1 : 0) - (isHigh(b.className) ? 1 : 0);
+      if (ld !== 0) return ld;
+      const ga = parseInt(a.className.match(/(\d)\s*학년/)?.[1] ?? '9');
+      const gb = parseInt(b.className.match(/(\d)\s*학년/)?.[1] ?? '9');
+      const sa = a.className.replace(/\s*\d+\s*학년.*$/, '').trim();
+      const sb = b.className.replace(/\s*\d+\s*학년.*$/, '').trim();
+      return sa.localeCompare(sb, 'ko') || ga - gb;
+    });
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -193,11 +217,17 @@ export default function Students() {
               placeholder="반 (예: 동부중 3학년)"
             />
             <input
-              className="flex-1 min-w-[100px] border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="flex-1 min-w-[80px] border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               value={nameInput}
               onChange={e => setNameInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
               placeholder="학생 이름"
+            />
+            <input
+              className="flex-1 min-w-[110px] border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              value={phoneInput}
+              onChange={e => setPhoneInput(e.target.value)}
+              placeholder="학부모 전화번호"
             />
             <button onClick={handleAdd} disabled={!nameInput.trim() || adding}
               className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-40">
@@ -228,10 +258,40 @@ export default function Students() {
                     {!collapsed && (
                       <div className="divide-y divide-slate-100">
                         {inClass.map(s => (
-                          <div key={s.id} className="flex items-center justify-between px-5 py-3">
-                            <p className="font-medium text-slate-800 text-sm">{s.name}</p>
+                          <div key={s.id} className="flex items-center justify-between px-5 py-3 gap-3">
+                            <p className="font-medium text-slate-800 text-sm w-20 flex-shrink-0">{s.name}</p>
+                            {editingPhoneId === s.id ? (
+                              <div className="flex flex-1 gap-1.5">
+                                <input
+                                  className="flex-1 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                  value={editingPhoneVal}
+                                  onChange={e => setEditingPhoneVal(e.target.value)}
+                                  onKeyDown={e => e.key === 'Enter' && handleSavePhone(s.id)}
+                                  placeholder="010-0000-0000"
+                                  autoFocus
+                                />
+                                <button onClick={() => handleSavePhone(s.id)}
+                                  className="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700">저장</button>
+                                <button onClick={() => setEditingPhoneId(null)}
+                                  className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs hover:bg-slate-50">취소</button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-1 items-center gap-1.5">
+                                {s.parentPhone ? (
+                                  <span className="flex items-center gap-1 text-xs text-slate-500">
+                                    <Phone size={11} className="text-green-500" /> {s.parentPhone}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-slate-300">전화번호 없음</span>
+                                )}
+                                <button onClick={() => { setEditingPhoneId(s.id); setEditingPhoneVal(s.parentPhone); }}
+                                  className="p-1 rounded hover:bg-slate-100 text-slate-300 hover:text-indigo-500 ml-auto">
+                                  <Pencil size={13} />
+                                </button>
+                              </div>
+                            )}
                             <button onClick={() => handleDelete(s.id, s.name)}
-                              className="p-1.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors">
+                              className="p-1.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0">
                               <Trash2 size={15} />
                             </button>
                           </div>

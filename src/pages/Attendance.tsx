@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   fetchStudents, fetchAttendanceByDate,
   fetchAttendanceByMonth, fetchAttendanceByWeek,
-  upsertAttendance, deleteAttendance,
+  upsertAttendance, deleteAttendance, sendAttendanceSms,
   type Student, type AttendanceRecord,
 } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
@@ -127,12 +127,17 @@ export default function Attendance() {
 
   const mark = async (studentName: string, status: AttendanceRecord['status']) => {
     setSaving(studentName);
-    if (records[studentName] === status) {
+    const prev = records[studentName];
+    if (prev === status) {
       await deleteAttendance(studentName, date);
-      setRecords(prev => ({ ...prev, [studentName]: null }));
+      setRecords(p => ({ ...p, [studentName]: null }));
     } else {
       await upsertAttendance({ studentName, date, status, note: '' });
-      setRecords(prev => ({ ...prev, [studentName]: status }));
+      setRecords(p => ({ ...p, [studentName]: status }));
+      // 지각·결석으로 새로 체크할 때만 SMS 발송 (기존 상태에서 바뀔 때)
+      if ((status === 'late' || status === 'absent') && prev !== status) {
+        sendAttendanceSms(studentName, status, date);
+      }
     }
     setSaving(null);
   };

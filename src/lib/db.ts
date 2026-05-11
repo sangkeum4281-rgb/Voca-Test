@@ -217,6 +217,7 @@ export interface Student {
   id: string;
   name: string;
   className: string;
+  parentPhone: string;
   createdAt: string;
 }
 
@@ -246,18 +247,34 @@ export async function fetchStudents(): Promise<Student[]> {
     id: row.id as string,
     name: row.name as string,
     className: (row.class_name as string) ?? '',
+    parentPhone: (row.parent_phone as string) ?? '',
     createdAt: row.created_at as string,
   })));
 }
 
-export async function addStudent(name: string, className: string): Promise<Student> {
+export async function addStudent(name: string, className: string, parentPhone = ''): Promise<Student> {
   const { data, error } = await supabase
     .from('students')
-    .insert({ name, class_name: className })
+    .insert({ name, class_name: className, parent_phone: parentPhone })
     .select()
     .single();
   if (error) throw error;
-  return { id: data.id, name: data.name, className: data.class_name ?? '', createdAt: data.created_at };
+  return { id: data.id, name: data.name, className: data.class_name ?? '', parentPhone: data.parent_phone ?? '', createdAt: data.created_at };
+}
+
+export async function updateStudentPhone(id: string, parentPhone: string): Promise<void> {
+  const { error } = await supabase.from('students').update({ parent_phone: parentPhone }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function sendAttendanceSms(studentName: string, status: 'late' | 'absent', date: string): Promise<void> {
+  try {
+    await supabase.functions.invoke('send-sms', {
+      body: { studentName, status, date },
+    });
+  } catch {
+    // SMS 실패는 조용히 처리 (출결 기록은 정상 저장됨)
+  }
 }
 
 export async function deleteStudent(id: string): Promise<void> {
