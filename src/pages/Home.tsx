@@ -55,9 +55,13 @@ export default function Home() {
   const handleSendSms = async (studentName: string, status: 'absent' | 'late') => {
     const key = `${studentName}-${status}`;
     setSendingMap(p => ({ ...p, [key]: true }));
-    await sendAttendanceSms(studentName, status, today);
+    const result = await sendAttendanceSms(studentName, status, today);
     setSendingMap(p => ({ ...p, [key]: false }));
-    setSentMap(p => ({ ...p, [key]: true }));
+    if (result.success) {
+      setSentMap(p => ({ ...p, [key]: true }));
+    } else {
+      alert(`문자 발송 실패: ${result.error}`);
+    }
   };
 
   // 반별 결석·지각자 그룹

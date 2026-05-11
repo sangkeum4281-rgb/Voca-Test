@@ -267,14 +267,13 @@ export async function updateStudentPhone(id: string, parentPhone: string): Promi
   if (error) throw error;
 }
 
-export async function sendAttendanceSms(studentName: string, status: 'late' | 'absent', date: string): Promise<void> {
-  try {
-    await supabase.functions.invoke('send-sms', {
-      body: { studentName, status, date },
-    });
-  } catch {
-    // SMS 실패는 조용히 처리 (출결 기록은 정상 저장됨)
-  }
+export async function sendAttendanceSms(studentName: string, status: 'late' | 'absent', date: string): Promise<{ success: boolean; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('send-sms', {
+    body: { studentName, status, date },
+  });
+  if (error) return { success: false, error: error.message };
+  if (data?.success === false) return { success: false, error: data.reason ?? data.error ?? JSON.stringify(data) };
+  return { success: true };
 }
 
 export async function deleteStudent(id: string): Promise<void> {
