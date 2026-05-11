@@ -267,13 +267,62 @@ export async function updateStudentPhone(id: string, parentPhone: string): Promi
   if (error) throw error;
 }
 
+async function solapiSign(apiKey: string, apiSecret: string): Promise<string> {
+  const date = new Date().toISOString();
+  const salt = crypto.randomUUID().replace(/-/g, '');
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(apiSecret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(date + salt));
+  const hex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `HMAC-SHA256 ApiKey=${apiKey}, Date=${date}, Salt=${salt}, Signature=${hex}`;
+}
+
 export async function sendAttendanceSms(studentName: string, status: 'late' | 'absent', date: string): Promise<{ success: boolean; error?: string }> {
-  const { data, error } = await supabase.functions.invoke('send-sms', {
-    body: { studentName, status, date },
-  });
-  if (error) return { success: false, error: error.message };
-  if (data?.success === false) return { success: false, error: data.reason ?? data.error ?? JSON.stringify(data) };
-  return { success: true };
+  try {
+    // 학부모 전화번호 조회
+    const { data: student } = await supabase
+      .from('students')
+      .select('parent_phone')
+      .eq('name', studentName)
+      .single();
+
+    if (!student?.parent_phone) {
+      return { success: false, error: '학부모 전화번호가 등록되지 않았습니다' };
+    }
+
+    const apiKey    = import.meta.env.VITE_SOLAPI_API_KEY as string;
+    const apiSecret = import.meta.env.VITE_SOLAPI_API_SECRET as string;
+    const from      = (import.meta.env.VITE_SENDER_PHONE as string).replace(/[^0-9]/g, '');
+
+    const statusText = status === 'late' ? '지각' : '결석';
+    const dateStr    = new Date(date + 'T00:00:00+09:00')
+      .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+    const text = `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${statusText}했습니다.`;
+
+    const res = await fetch('https://api.solapi.com/messages/v4/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': await solapiSign(apiKey, apiSecret),
+      },
+      body: JSON.stringify({
+        message: {
+          to: student.parent_phone.replace(/[^0-9]/g, ''),
+          from,
+          text,
+        },
+      }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) return { success: false, error: result.errorMessage ?? JSON.stringify(result) };
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
 }
 
 export async function deleteStudent(id: string): Promise<void> {
