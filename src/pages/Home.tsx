@@ -20,7 +20,22 @@ export default function Home() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingMap, setSendingMap] = useState<Record<string, boolean>>({});
-  const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
+
+  // 오늘 날짜 기준으로 localStorage에서 발송 기록 복원
+  const todayKey = `sms-sent-${toDateStr(new Date())}`;
+  const [sentMap, setSentMap] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(todayKey) ?? '{}');
+    } catch { return {}; }
+  });
+
+  const markSent = (key: string) => {
+    setSentMap(p => {
+      const next = { ...p, [key]: true };
+      localStorage.setItem(todayKey, JSON.stringify(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     const today = toDateStr(new Date());
@@ -60,7 +75,7 @@ export default function Home() {
     const result = await sendAttendanceSms(studentName, status, today);
     setSendingMap(p => ({ ...p, [key]: false }));
     if (result.success) {
-      setSentMap(p => ({ ...p, [key]: true }));
+      markSent(key);
     } else {
       alert(`문자 발송 실패 (${studentName}): ${result.error}`);
     }
@@ -87,7 +102,7 @@ export default function Home() {
       const result = await sendAttendanceSms(name, status, today);
       const key = `${name}-${status}`;
       if (result.success) {
-        setSentMap(p => ({ ...p, [key]: true }));
+        markSent(key);
       } else {
         errors.push(`${name}: ${result.error}`);
       }
