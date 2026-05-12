@@ -52,6 +52,8 @@ export default function Home() {
 
   const today = toDateStr(new Date());
 
+  const [bulkSending, setBulkSending] = useState(false);
+
   const handleSendSms = async (studentName: string, status: 'absent' | 'late') => {
     const key = `${studentName}-${status}`;
     setSendingMap(p => ({ ...p, [key]: true }));
@@ -60,8 +62,38 @@ export default function Home() {
     if (result.success) {
       setSentMap(p => ({ ...p, [key]: true }));
     } else {
-      alert(`문자 발송 실패: ${result.error}`);
+      alert(`문자 발송 실패 (${studentName}): ${result.error}`);
     }
+  };
+
+  const handleSendAll = async () => {
+    if (!confirm('결석·지각 학생 전체에게 문자를 발송하시겠습니까?')) return;
+    setBulkSending(true);
+    const targets: { name: string; status: 'absent' | 'late' }[] = [];
+    for (const { absentNames, lateNames } of absentByClass) {
+      for (const name of absentNames) {
+        const hasPhone = students.find(s => s.name === name)?.parentPhone;
+        const key = `${name}-absent`;
+        if (hasPhone && !sentMap[key]) targets.push({ name, status: 'absent' });
+      }
+      for (const name of lateNames) {
+        const hasPhone = students.find(s => s.name === name)?.parentPhone;
+        const key = `${name}-late`;
+        if (hasPhone && !sentMap[key]) targets.push({ name, status: 'late' });
+      }
+    }
+    const errors: string[] = [];
+    for (const { name, status } of targets) {
+      const result = await sendAttendanceSms(name, status, today);
+      const key = `${name}-${status}`;
+      if (result.success) {
+        setSentMap(p => ({ ...p, [key]: true }));
+      } else {
+        errors.push(`${name}: ${result.error}`);
+      }
+    }
+    setBulkSending(false);
+    if (errors.length > 0) alert(`일부 발송 실패:\n${errors.join('\n')}`);
   };
 
   // 반별 결석·지각자 그룹
@@ -111,9 +143,16 @@ export default function Home() {
           <div className="flex items-center gap-2 px-5 py-4 border-b border-red-100">
             <XCircle size={16} className="text-red-500" />
             <h2 className="font-semibold text-slate-700">오늘 결석·지각 현황</h2>
-            <span className="text-xs text-slate-400 ml-auto">
+            <span className="text-xs text-slate-400">
               {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
             </span>
+            {isTeacher && (
+              <button onClick={handleSendAll} disabled={bulkSending}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                <Send size={12} />
+                {bulkSending ? '발송 중...' : '전체 문자 발송'}
+              </button>
+            )}
           </div>
           <div className="divide-y divide-slate-100">
             {absentByClass.map(({ cls, absentNames, lateNames }) => (
