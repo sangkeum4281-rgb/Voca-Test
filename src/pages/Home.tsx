@@ -38,7 +38,7 @@ export default function Home() {
     });
   };
 
-  useEffect(() => {
+  const fetchAll = () => {
     const today = toDateStr(new Date());
     Promise.all([
       fetchWordLists(),
@@ -54,6 +54,14 @@ export default function Home() {
       setStudents(stu);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    fetchAll();
+    // 탭 전환 후 돌아올 때 자동 새로고침
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchAll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
   if (loading) return <div className="flex justify-center py-24"><Loader size={28} className="animate-spin text-indigo-400" /></div>;
