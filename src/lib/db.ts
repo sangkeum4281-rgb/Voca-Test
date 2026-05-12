@@ -332,8 +332,17 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
 }
 
 export async function deleteStudent(id: string): Promise<void> {
+  // 학생 이름 먼저 조회
+  const { data: student } = await supabase.from('students').select('name').eq('id', id).single();
   const { error } = await supabase.from('students').delete().eq('id', id);
   if (error) throw error;
+  // 오늘 출결 기록도 삭제
+  if (student?.name) {
+    const today = new Date().toISOString().slice(0, 10);
+    await supabase.from('attendance').delete()
+      .eq('student_name', student.name)
+      .eq('date', today);
+  }
 }
 
 // ── announcements ─────────────────────────────────────────
