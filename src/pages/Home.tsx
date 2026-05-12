@@ -20,6 +20,7 @@ export default function Home() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingMap, setSendingMap] = useState<Record<string, boolean>>({});
+  const [bulkSending, setBulkSending] = useState(false);
 
   // 오늘 날짜 기준으로 localStorage에서 발송 기록 복원
   const todayKey = `sms-sent-${toDateStr(new Date())}`;
@@ -66,8 +67,6 @@ export default function Home() {
   const absent  = todayAtt.filter(r => r.status === 'absent').length;
 
   const today = toDateStr(new Date());
-
-  const [bulkSending, setBulkSending] = useState(false);
 
   const handleSendSms = async (studentName: string, status: 'absent' | 'late') => {
     const key = `${studentName}-${status}`;
