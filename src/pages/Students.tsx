@@ -56,6 +56,17 @@ export default function Students() {
   const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
   const [savingPos, setSavingPos] = useState(false);
 
+  const downloadQR = async () => {
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + '/checkin')}`;
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '최강학원_체크인QR.png';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   const toggleClass = (cls: string) => {
     setCollapsedClasses(prev => {
       const next = new Set(prev);
@@ -240,10 +251,16 @@ export default function Students() {
               <p className="font-semibold text-indigo-700 mb-1">학생 출석 체크인 QR</p>
               <p className="text-xs text-slate-500">학원 50m 이내에서만 체크인 가능</p>
               <p className="text-xs text-slate-400 mt-0.5">인쇄하거나 화면에 띄워두세요</p>
-              <a href="/checkin" target="_blank"
-                className="inline-block mt-2 text-xs text-indigo-600 hover:underline">
-                {window.location.origin}/checkin
-              </a>
+              <div className="flex items-center gap-3 mt-2">
+                <a href="/checkin" target="_blank"
+                  className="text-xs text-indigo-600 hover:underline">
+                  {window.location.origin}/checkin
+                </a>
+                <button onClick={downloadQR}
+                  className="text-xs bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 active:scale-95 transition-all">
+                  다운로드
+                </button>
+              </div>
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
