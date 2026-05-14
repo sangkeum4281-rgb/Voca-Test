@@ -213,6 +213,22 @@ export default function Students() {
       {/* 학생 목록 탭 */}
       {tab === 'roster' && (
         <div className="space-y-4">
+          {/* 체크인 QR */}
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-5">
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + '/checkin')}`}
+              alt="체크인 QR"
+              className="w-24 h-24 rounded-lg border border-indigo-200"
+            />
+            <div>
+              <p className="font-semibold text-indigo-700 mb-1">학생 출석 체크인 QR</p>
+              <p className="text-xs text-slate-500">학생들이 이 QR을 스캔하면 직접 체크인할 수 있어요</p>
+              <a href="/checkin" target="_blank"
+                className="inline-block mt-2 text-xs text-indigo-600 hover:underline">
+                {window.location.origin}/checkin
+              </a>
+            </div>
+          </div>
           <div className="flex gap-2 flex-wrap">
             <input
               className="flex-1 min-w-[120px] border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"

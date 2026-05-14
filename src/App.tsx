@@ -11,6 +11,7 @@ import Students from './pages/Students';
 import Attendance from './pages/Attendance';
 import Announcements from './pages/Announcements';
 import QnA from './pages/QnA';
+import Checkin from './pages/Checkin';
 import './index.css';
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/attendance" element={<Attendance />} />
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/qna" element={<QnA />} />
+            <Route path="/checkin" element={<Checkin />} />
           </Routes>
         </Layout>
       </BrowserRouter>

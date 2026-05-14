@@ -280,7 +280,7 @@ async function solapiSign(apiKey: string, apiSecret: string): Promise<string> {
   return `HMAC-SHA256 ApiKey=${apiKey}, Date=${date}, Salt=${salt}, Signature=${hex}`;
 }
 
-export async function sendAttendanceSms(studentName: string, status: 'late' | 'absent', date: string): Promise<{ success: boolean; error?: string }> {
+export async function sendAttendanceSms(studentName: string, status: 'late' | 'absent' | 'present', date: string): Promise<{ success: boolean; error?: string }> {
   try {
     // 학부모 전화번호 조회
     const { data: student } = await supabase
@@ -303,10 +303,11 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
 
     const from = senderRaw.replace(/[^0-9]/g, '');
 
-    const statusText = status === 'late' ? '지각' : '결석';
-    const dateStr    = new Date(date + 'T00:00:00+09:00')
+    const dateStr = new Date(date + 'T00:00:00+09:00')
       .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
-    const text = `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${statusText}했습니다.`;
+    const text = status === 'present'
+      ? `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 학원에 도착했습니다.`
+      : `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${status === 'late' ? '지각' : '결석'}했습니다.`;
 
     const res = await fetch('https://api.solapi.com/messages/v4/send', {
       method: 'POST',
