@@ -131,7 +131,6 @@ export default function Checkin() {
         <MapPin size={64} className="text-red-400" />
         <h1 className="text-2xl font-bold">학원 근처가 아닙니다</h1>
         <p className="text-slate-300">현재 위치: 학원에서 약 {distance}m</p>
-        <p className="text-slate-400 text-sm">학원 {RADIUS_M}m 이내에서만 체크인할 수 있어요</p>
       </div>
     );
   }
