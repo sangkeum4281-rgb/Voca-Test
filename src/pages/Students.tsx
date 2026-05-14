@@ -85,9 +85,13 @@ export default function Students() {
   };
 
   const handleSavePhone = async (id: string) => {
-    await updateStudentPhone(id, editingPhoneVal.trim());
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, parentPhone: editingPhoneVal.trim() } : s));
-    setEditingPhoneId(null);
+    try {
+      await updateStudentPhone(id, editingPhoneVal.trim());
+      setStudents(prev => prev.map(s => s.id === id ? { ...s, parentPhone: editingPhoneVal.trim() } : s));
+      setEditingPhoneId(null);
+    } catch (e) {
+      alert(`저장 실패: ${String(e)}`);
+    }
   };
 
   // sortStudents를 컴포넌트 내에서도 쓸 수 있도록
