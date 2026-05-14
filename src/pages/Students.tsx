@@ -260,6 +260,14 @@ export default function Students() {
                   className="text-xs bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 active:scale-95 transition-all">
                   다운로드
                 </button>
+                <button onClick={() => {
+                  const key = `checkin-${new Date().toISOString().slice(0, 10)}`;
+                  localStorage.removeItem(key);
+                  alert('체크인 기록 초기화됨');
+                }}
+                  className="text-xs text-slate-400 hover:text-red-500 transition-colors">
+                  초기화
+                </button>
               </div>
             </div>
           </div>
