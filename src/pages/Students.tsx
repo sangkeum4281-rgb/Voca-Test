@@ -4,13 +4,14 @@ import type { TestType } from '../types';
 import {
   fetchStudents, addStudent, deleteStudent, updateStudentPhone,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
-  type Student, type AttendanceRecord,
+  fetchClassSchedules, upsertClassSchedule,
+  type Student, type AttendanceRecord, type ClassSchedule,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock } from 'lucide-react';
 
-type Tab = 'roster' | 'weekly';
+type Tab = 'roster' | 'weekly' | 'schedule';
 
 const REQUIRED: TestType[] = ['multiple-choice-en', 'multiple-choice-kr', 'fill-blank', 'spelling'];
 const REQUIRED_LABELS: Record<string, string> = {
@@ -50,6 +51,8 @@ export default function Students() {
   const [collapsedClasses, setCollapsedClasses] = useState<Set<string>>(new Set());
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null);
   const [editingPhoneVal, setEditingPhoneVal] = useState('');
+  const [_schedules, setSchedules] = useState<ClassSchedule[]>([]);
+  const [scheduleEdits, setScheduleEdits] = useState<Record<string, string>>({});
 
   const toggleClass = (cls: string) => {
     setCollapsedClasses(prev => {
@@ -61,9 +64,13 @@ export default function Students() {
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
-    Promise.all([fetchStudents(), fetchWordLists()]).then(([s, wl]) => {
+    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules()]).then(([s, wl, sch]) => {
       setStudents(s);
       setWordLists(wl);
+      setSchedules(sch);
+      const edits: Record<string, string> = {};
+      sch.forEach(sc => { edits[sc.gradeKey] = sc.startTime; });
+      setScheduleEdits(edits);
       if (wl.length > 0) setSelectedListId(wl[0].id);
       const classes = [...new Set(s.map(x => x.className).filter(Boolean))].sort();
       if (classes.length > 0) setSelectedWeeklyClass(classes[0]);
@@ -207,6 +214,12 @@ export default function Students() {
             tab === 'weekly' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}>
           <BarChart2 size={15} /> 주간 현황
+        </button>
+        <button onClick={() => setTab('schedule')}
+          className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'schedule' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <AlarmClock size={15} /> 수업 시간
         </button>
       </div>
 
@@ -474,6 +487,47 @@ export default function Students() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* 수업 시간 탭 */}
+      {tab === 'schedule' && (
+        <div className="space-y-4 max-w-sm">
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+            <p className="text-sm font-semibold text-indigo-700 mb-1">수업 시작 시간 설정</p>
+            <p className="text-xs text-slate-500">QR 체크인 시 시작 시간 이후 도착하면 자동 지각 처리됩니다</p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+            {['1학년', '2학년', '3학년'].map(grade => (
+              <div key={grade} className="flex items-center justify-between px-5 py-4">
+                <span className="font-semibold text-slate-700 text-sm">{grade}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={scheduleEdits[grade] ?? '16:30'}
+                    onChange={e => setScheduleEdits(prev => ({ ...prev, [grade]: e.target.value }))}
+                    className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <button
+                    onClick={async () => {
+                      await upsertClassSchedule(grade, scheduleEdits[grade] ?? '16:30');
+                      setSchedules(prev => {
+                        const exists = prev.find(s => s.gradeKey === grade);
+                        const t = scheduleEdits[grade] ?? '16:30';
+                        if (exists) return prev.map(s => s.gradeKey === grade ? { ...s, startTime: t } : s);
+                        return [...prev, { gradeKey: grade, startTime: t }];
+                      });
+                      alert(`${grade} 수업 시간이 저장되었습니다.`);
+                    }}
+                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700"
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 text-center">모든 학교의 동일 학년에 동일하게 적용됩니다</p>
         </div>
       )}
     </div>

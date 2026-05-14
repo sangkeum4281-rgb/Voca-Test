@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
-import { fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAttendanceSms, type Student } from '../lib/db';
+import {
+  fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAttendanceSms,
+  fetchClassSchedules, getStartTime, checkIfLate,
+  type Student, type ClassSchedule,
+} from '../lib/db';
 import { CheckCircle, Loader } from 'lucide-react';
 
 function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
 
 export default function Checkin() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState('');
   const [checkedIn, setCheckedIn] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ name: string; isLate: boolean } | null>(null);
 
   const today = toDateStr(new Date());
   const deviceKey = `checkin-${today}`;
@@ -18,28 +23,36 @@ export default function Checkin() {
 
   useEffect(() => {
     if (alreadyDoneByDevice) { setLoading(false); return; }
-    Promise.all([fetchStudents(), fetchAttendanceByDate(today)]).then(([stu, att]) => {
-      setStudents(stu);
-      const classes = [...new Set(stu.map(s => s.className).filter(Boolean))];
-      if (classes.length > 0) setSelectedClass(classes[0]);
-      const alreadyIn = new Set(att.filter(a => a.status === 'present').map(a => a.studentName));
-      setCheckedIn(alreadyIn);
-      setLoading(false);
-    });
+    Promise.all([fetchStudents(), fetchAttendanceByDate(today), fetchClassSchedules()])
+      .then(([stu, att, sch]) => {
+        setStudents(stu);
+        setSchedules(sch);
+        const classes = [...new Set(stu.map(s => s.className).filter(Boolean))];
+        if (classes.length > 0) setSelectedClass(classes[0]);
+        const alreadyIn = new Set(
+          att.filter(a => a.status === 'present' || a.status === 'late').map(a => a.studentName)
+        );
+        setCheckedIn(alreadyIn);
+        setLoading(false);
+      });
   }, []);
 
   const handleCheckin = async (student: Student) => {
     if (checkedIn.has(student.name) || processing) return;
     setProcessing(student.name);
     try {
-      await upsertAttendance({ studentName: student.name, date: today, status: 'present', note: '' });
+      const startTime = getStartTime(student.className, schedules);
+      const isLate = checkIfLate(startTime);
+      const status = isLate ? 'late' : 'present';
+
+      await upsertAttendance({ studentName: student.name, date: today, status, note: '' });
       localStorage.setItem(deviceKey, student.name);
       setCheckedIn(prev => new Set([...prev, student.name]));
-      setSuccess(student.name);
+      setSuccess({ name: student.name, isLate });
       if (student.parentPhone) {
-        sendAttendanceSms(student.name, 'present', today);
+        sendAttendanceSms(student.name, status, today);
       }
-      setTimeout(() => setSuccess(null), 3000);
+      setTimeout(() => setSuccess(null), 4000);
     } finally {
       setProcessing(null);
     }
@@ -84,11 +97,17 @@ export default function Checkin() {
 
       {/* 성공 메시지 */}
       {success && (
-        <div className="mx-4 mb-4 bg-green-400 text-white rounded-2xl p-4 flex items-center gap-3 shadow-lg animate-pulse">
+        <div className={`mx-4 mb-4 rounded-2xl p-4 flex items-center gap-3 shadow-lg ${
+          success.isLate ? 'bg-yellow-400 text-white' : 'bg-green-400 text-white'
+        }`}>
           <CheckCircle size={28} />
           <div>
-            <p className="font-bold text-lg">{success}님 체크인 완료!</p>
-            <p className="text-sm opacity-90">학부모님께 알림을 보냈습니다</p>
+            <p className="font-bold text-lg">
+              {success.name}님 {success.isLate ? '지각 처리되었습니다' : '체크인 완료!'}
+            </p>
+            <p className="text-sm opacity-90">
+              {success.isLate ? '수업 시작 후 도착했습니다' : '학부모님께 알림을 보냈습니다'}
+            </p>
           </div>
         </div>
       )}

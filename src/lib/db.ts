@@ -528,3 +528,46 @@ export async function deleteQna(id: string): Promise<void> {
   const { error } = await supabase.from('qna').delete().eq('id', id);
   if (error) throw error;
 }
+
+// ── class schedules ───────────────────────────────────────
+
+export interface ClassSchedule {
+  gradeKey: string;  // '1학년', '2학년', '3학년'
+  startTime: string; // 'HH:MM'
+}
+
+export async function fetchClassSchedules(): Promise<ClassSchedule[]> {
+  const { data, error } = await supabase
+    .from('class_schedules')
+    .select('*')
+    .order('grade_key');
+  if (error) throw error;
+  return (data ?? []).map(row => ({
+    gradeKey: row.grade_key as string,
+    startTime: row.start_time as string,
+  }));
+}
+
+export async function upsertClassSchedule(gradeKey: string, startTime: string): Promise<void> {
+  const { error } = await supabase
+    .from('class_schedules')
+    .upsert({ grade_key: gradeKey, start_time: startTime, updated_at: new Date().toISOString() },
+      { onConflict: 'grade_key' });
+  if (error) throw error;
+}
+
+// 학생의 반에서 학년 추출 후 수업 시작 시간 반환
+export function getStartTime(className: string, schedules: ClassSchedule[]): string {
+  const gradeMatch = className.match(/(\d+학년)/);
+  if (!gradeMatch) return '16:30';
+  const schedule = schedules.find(s => s.gradeKey === gradeMatch[1]);
+  return schedule?.startTime ?? '16:30';
+}
+
+// 현재 시각(KST)이 수업 시작 시간보다 늦으면 지각
+export function checkIfLate(startTime: string): boolean {
+  const now = new Date();
+  const kstNow = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
+  const [h, m] = startTime.split(':').map(Number);
+  return kstNow.getHours() * 60 + kstNow.getMinutes() > h * 60 + m;
+}
