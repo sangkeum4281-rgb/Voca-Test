@@ -229,16 +229,17 @@ export default function Students() {
           {/* 체크인 QR */}
           <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-5">
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + '/checkin')}`}
-              alt="체크인 QR"
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + '/checkin-qr')}`}
+              alt="체크인 QR 화면"
               className="w-24 h-24 rounded-lg border border-indigo-200"
             />
             <div>
-              <p className="font-semibold text-indigo-700 mb-1">학생 출석 체크인 QR</p>
-              <p className="text-xs text-slate-500">학생들이 이 QR을 스캔하면 직접 체크인할 수 있어요</p>
-              <a href="/checkin" target="_blank"
-                className="inline-block mt-2 text-xs text-indigo-600 hover:underline">
-                {window.location.origin}/checkin
+              <p className="font-semibold text-indigo-700 mb-1">동적 QR 체크인</p>
+              <p className="text-xs text-slate-500">입구 화면에 표시 → 학생이 스캔 → 체크인</p>
+              <p className="text-xs text-slate-400 mt-0.5">QR이 30초마다 바뀌어 사진 도용 불가</p>
+              <a href="/checkin-qr" target="_blank"
+                className="inline-block mt-2 text-xs text-indigo-600 hover:underline font-medium">
+                QR 화면 열기 →
               </a>
             </div>
           </div>
