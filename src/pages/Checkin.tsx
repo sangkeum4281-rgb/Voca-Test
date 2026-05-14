@@ -23,8 +23,11 @@ export default function Checkin() {
 
   useEffect(() => {
     if (alreadyDoneByDevice) { setLoading(false); return; }
-    Promise.all([fetchStudents(), fetchAttendanceByDate(today), fetchClassSchedules()])
-      .then(([stu, att, sch]) => {
+    Promise.all([
+      fetchStudents(),
+      fetchAttendanceByDate(today),
+      fetchClassSchedules().catch(() => []),
+    ]).then(([stu, att, sch]) => {
         setStudents(stu);
         setSchedules(sch);
         const classes = [...new Set(stu.map(s => s.className).filter(Boolean))];
