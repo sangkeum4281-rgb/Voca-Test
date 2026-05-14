@@ -556,12 +556,20 @@ export async function upsertClassSchedule(gradeKey: string, startTime: string): 
   if (error) throw error;
 }
 
+// 학년별 기본 시간 (DB 로드 실패 시 폴백)
+const GRADE_DEFAULTS: Record<string, string> = {
+  '1학년': '16:30',
+  '2학년': '18:30',
+  '3학년': '16:30',
+};
+
 // 학생의 반에서 학년 추출 후 수업 시작 시간 반환
 export function getStartTime(className: string, schedules: ClassSchedule[]): string {
   const gradeMatch = className.match(/(\d+학년)/);
   if (!gradeMatch) return '16:30';
-  const schedule = schedules.find(s => s.gradeKey === gradeMatch[1]);
-  return schedule?.startTime ?? '16:30';
+  const grade = gradeMatch[1];
+  const schedule = schedules.find(s => s.gradeKey === grade);
+  return schedule?.startTime ?? GRADE_DEFAULTS[grade] ?? '16:30';
 }
 
 // 현재 시각(KST)이 수업 시작 시간보다 늦으면 지각
