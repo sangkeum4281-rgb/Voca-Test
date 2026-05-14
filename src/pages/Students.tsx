@@ -4,7 +4,7 @@ import type { TestType } from '../types';
 import {
   fetchStudents, addStudent, deleteStudent, updateStudentPhone,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
-  fetchClassSchedules, upsertClassSchedule,
+  fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
   type Student, type AttendanceRecord, type ClassSchedule,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -53,6 +53,8 @@ export default function Students() {
   const [editingPhoneVal, setEditingPhoneVal] = useState('');
   const [_schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [scheduleEdits, setScheduleEdits] = useState<Record<string, string>>({});
+  const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [savingPos, setSavingPos] = useState(false);
 
   const toggleClass = (cls: string) => {
     setCollapsedClasses(prev => {
@@ -64,10 +66,11 @@ export default function Students() {
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
-    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules()]).then(([s, wl, sch]) => {
+    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation()]).then(([s, wl, sch, loc]) => {
       setStudents(s);
       setWordLists(wl);
       setSchedules(sch);
+      if (loc) setSchoolPos(loc);
       const edits: Record<string, string> = {};
       sch.forEach(sc => { edits[sc.gradeKey] = sc.startTime; });
       setScheduleEdits(edits);
@@ -229,17 +232,17 @@ export default function Students() {
           {/* 체크인 QR */}
           <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-5">
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + '/checkin-qr')}`}
-              alt="체크인 QR 화면"
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + '/checkin')}`}
+              alt="체크인 QR"
               className="w-24 h-24 rounded-lg border border-indigo-200"
             />
             <div>
-              <p className="font-semibold text-indigo-700 mb-1">동적 QR 체크인</p>
-              <p className="text-xs text-slate-500">입구 화면에 표시 → 학생이 스캔 → 체크인</p>
-              <p className="text-xs text-slate-400 mt-0.5">QR이 30초마다 바뀌어 사진 도용 불가</p>
-              <a href="/checkin-qr" target="_blank"
-                className="inline-block mt-2 text-xs text-indigo-600 hover:underline font-medium">
-                QR 화면 열기 →
+              <p className="font-semibold text-indigo-700 mb-1">학생 출석 체크인 QR</p>
+              <p className="text-xs text-slate-500">학원 200m 이내에서만 체크인 가능</p>
+              <p className="text-xs text-slate-400 mt-0.5">인쇄하거나 화면에 띄워두세요</p>
+              <a href="/checkin" target="_blank"
+                className="inline-block mt-2 text-xs text-indigo-600 hover:underline">
+                {window.location.origin}/checkin
               </a>
             </div>
           </div>
@@ -529,6 +532,34 @@ export default function Students() {
             ))}
           </div>
           <p className="text-xs text-slate-400 text-center">모든 학교의 동일 학년에 동일하게 적용됩니다</p>
+
+          {/* 학원 위치 설정 */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+            <p className="text-sm font-semibold text-slate-700">학원 위치 설정</p>
+            <p className="text-xs text-slate-400">학원에서 이 버튼을 누르면 현재 위치가 학원으로 등록됩니다.<br />학생들은 반경 200m 이내에서만 체크인 가능합니다.</p>
+            {schoolPos && (
+              <p className="text-xs text-green-600 font-medium">✓ 위치 등록됨 ({schoolPos.lat.toFixed(5)}, {schoolPos.lng.toFixed(5)})</p>
+            )}
+            <button
+              disabled={savingPos}
+              onClick={async () => {
+                setSavingPos(true);
+                navigator.geolocation.getCurrentPosition(
+                  async (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    await setSchoolLocation(latitude, longitude);
+                    setSchoolPos({ lat: latitude, lng: longitude });
+                    setSavingPos(false);
+                    alert('학원 위치가 저장되었습니다!');
+                  },
+                  () => { setSavingPos(false); alert('위치 권한을 허용해주세요.'); }
+                );
+              }}
+              className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {savingPos ? '위치 확인 중...' : '📍 현재 위치를 학원으로 설정'}
+            </button>
+          </div>
         </div>
       )}
     </div>

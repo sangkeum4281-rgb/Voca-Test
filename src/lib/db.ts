@@ -529,6 +529,39 @@ export async function deleteQna(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// ── school location ───────────────────────────────────────
+
+export interface SchoolLocation { lat: number; lng: number }
+
+export async function getSchoolLocation(): Promise<SchoolLocation | null> {
+  const { data, error } = await supabase
+    .from('school_settings')
+    .select('value')
+    .eq('key', 'school_location')
+    .single();
+  if (error || !data) return null;
+  try { return JSON.parse(data.value); } catch { return null; }
+}
+
+export async function setSchoolLocation(lat: number, lng: number): Promise<void> {
+  const { error } = await supabase.from('school_settings').upsert(
+    { key: 'school_location', value: JSON.stringify({ lat, lng }) },
+    { onConflict: 'key' }
+  );
+  if (error) throw error;
+}
+
+// Haversine 거리 계산 (미터)
+export function calcDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // ── class schedules ───────────────────────────────────────
 
 export interface ClassSchedule {
