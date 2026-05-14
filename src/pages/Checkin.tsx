@@ -13,8 +13,11 @@ export default function Checkin() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const today = toDateStr(new Date());
+  const deviceKey = `checkin-${today}`;
+  const alreadyDoneByDevice = localStorage.getItem(deviceKey);
 
   useEffect(() => {
+    if (alreadyDoneByDevice) { setLoading(false); return; }
     Promise.all([fetchStudents(), fetchAttendanceByDate(today)]).then(([stu, att]) => {
       setStudents(stu);
       const classes = [...new Set(stu.map(s => s.className).filter(Boolean))];
@@ -30,6 +33,7 @@ export default function Checkin() {
     setProcessing(student.name);
     try {
       await upsertAttendance({ studentName: student.name, date: today, status: 'present', note: '' });
+      localStorage.setItem(deviceKey, student.name);
       setCheckedIn(prev => new Set([...prev, student.name]));
       setSuccess(student.name);
       if (student.parentPhone) {
@@ -48,6 +52,21 @@ export default function Checkin() {
     return (
       <div className="min-h-screen bg-indigo-700 flex items-center justify-center">
         <Loader size={36} className="animate-spin text-white" />
+      </div>
+    );
+  }
+
+  // 오늘 이미 체크인한 기기
+  if (alreadyDoneByDevice) {
+    return (
+      <div className="min-h-screen bg-green-600 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
+        <CheckCircle size={72} className="text-white" />
+        <h1 className="text-3xl font-bold">오늘 이미 체크인 완료!</h1>
+        <p className="text-xl text-green-100">{alreadyDoneByDevice} 학생</p>
+        <p className="text-green-200 text-sm">
+          {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
+        </p>
+        <p className="text-green-200 text-xs mt-4">이 기기에서는 하루에 한 번만 체크인할 수 있어요</p>
       </div>
     );
   }
