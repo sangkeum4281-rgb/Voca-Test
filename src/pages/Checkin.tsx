@@ -8,7 +8,7 @@ import { CheckCircle, Loader, MapPin, AlertCircle } from 'lucide-react';
 
 function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
 
-const RADIUS_M = 200; // 허용 반경 (미터)
+const RADIUS_M = 50; // 허용 반경 (미터)
 
 type GeoState = 'checking' | 'ok' | 'denied' | 'out_of_range' | 'no_school_set';
 
