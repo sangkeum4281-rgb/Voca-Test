@@ -62,8 +62,9 @@ export default function Students() {
   const [smsTestPhone, setSmsTestPhoneState] = useState('');
   const [smsTestInput, setSmsTestInput] = useState('');
   const [closedDates, setClosedDates] = useState<string[]>([]);
-  const [openDates, setOpenDates] = useState<string[]>([]);
+  const [openDates, setOpenDates] = useState<import('../lib/db').OpenDate[]>([]);
   const [specialDateInput, setSpecialDateInput] = useState('');
+  const [specialTimeInput, setSpecialTimeInput] = useState('');
 
   const downloadQR = async () => {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + '/checkin')}`;
@@ -636,21 +637,26 @@ export default function Students() {
           {/* 휴원일 / 보강일 설정 */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
             <p className="text-sm font-semibold text-slate-700">휴원일 / 보강일 설정</p>
-            <input type="date" value={specialDateInput} onChange={e => setSpecialDateInput(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             <div className="flex gap-2">
+              <input type="date" value={specialDateInput} onChange={e => setSpecialDateInput(e.target.value)}
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
               <button onClick={async () => {
                 if (!specialDateInput || closedDates.includes(specialDateInput)) return;
                 const next = [...closedDates, specialDateInput].sort();
                 await setSpecialDates(next, openDates);
                 setClosedDates(next); setSpecialDateInput('');
-              }} className="flex-1 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600">휴원일 추가</button>
+              }} className="px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 whitespace-nowrap">휴원일</button>
+            </div>
+            <div className="flex gap-2 items-center">
+              <input type="time" value={specialTimeInput} onChange={e => setSpecialTimeInput(e.target.value)}
+                placeholder="보강 시간 (선택)" className="w-32 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              <p className="text-xs text-slate-400">시간 미입력 시 기본 수업 시간 적용</p>
               <button onClick={async () => {
-                if (!specialDateInput || openDates.includes(specialDateInput)) return;
-                const next = [...openDates, specialDateInput].sort();
+                if (!specialDateInput || openDates.find(o => o.date === specialDateInput)) return;
+                const next = [...openDates, { date: specialDateInput, time: specialTimeInput || undefined }].sort((a,b) => a.date.localeCompare(b.date));
                 await setSpecialDates(closedDates, next);
-                setOpenDates(next); setSpecialDateInput('');
-              }} className="flex-1 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600">보강일 추가</button>
+                setOpenDates(next); setSpecialDateInput(''); setSpecialTimeInput('');
+              }} className="ml-auto px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 whitespace-nowrap">보강일 추가</button>
             </div>
             {closedDates.length > 0 && (
               <div>
@@ -672,11 +678,11 @@ export default function Students() {
               <div>
                 <p className="text-xs font-semibold text-blue-500 mb-1">보강일 (주말 수업)</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {openDates.map(d => (
-                    <span key={d} className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-600 text-xs px-2 py-1 rounded-full">
-                      {d}
+                  {openDates.map(o => (
+                    <span key={o.date} className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-600 text-xs px-2 py-1 rounded-full">
+                      {o.date}{o.time ? ` ${o.time}` : ''}
                       <button onClick={async () => {
-                        const next = openDates.filter(x => x !== d);
+                        const next = openDates.filter(x => x.date !== o.date);
                         await setSpecialDates(closedDates, next); setOpenDates(next);
                       }} className="text-blue-400 hover:text-blue-600 font-bold">×</button>
                     </span>

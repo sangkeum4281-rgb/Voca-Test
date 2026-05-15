@@ -609,18 +609,22 @@ export async function setSmsTestPhone(phone: string): Promise<void> {
   );
 }
 
-export async function getSpecialDates(): Promise<{ closed: string[]; open: string[] }> {
+export interface OpenDate { date: string; time?: string; }
+
+export async function getSpecialDates(): Promise<{ closed: string[]; open: OpenDate[] }> {
   const { data } = await supabase.from('school_settings').select('key,value').in('key', ['closed_dates', 'open_dates']);
   const map: Record<string, string> = {};
   for (const row of data ?? []) map[row.key] = row.value;
-  const parse = (v: string) => v ? v.split(',').filter(Boolean) : [];
-  return { closed: parse(map['closed_dates'] ?? ''), open: parse(map['open_dates'] ?? '') };
+  const closed = map['closed_dates'] ? map['closed_dates'].split(',').filter(Boolean) : [];
+  let open: OpenDate[] = [];
+  try { open = map['open_dates'] ? JSON.parse(map['open_dates']) : []; } catch { open = []; }
+  return { closed, open };
 }
 
-export async function setSpecialDates(closed: string[], open: string[]): Promise<void> {
+export async function setSpecialDates(closed: string[], open: OpenDate[]): Promise<void> {
   await supabase.from('school_settings').upsert([
     { key: 'closed_dates', value: closed.join(',') },
-    { key: 'open_dates', value: open.join(',') },
+    { key: 'open_dates', value: JSON.stringify(open) },
   ], { onConflict: 'key' });
 }
 
@@ -748,7 +752,8 @@ export async function autoMarkAbsent(sendSms = false): Promise<void> {
 
   const { closed, open } = await getSpecialDates();
   if (closed.includes(today)) return; // 휴원일
-  if (isWeekend && !open.includes(today)) return; // 주말인데 보강 등록 안 됨
+  const openEntry = open.find(o => o.date === today);
+  if (isWeekend && !openEntry) return; // 주말인데 보강 등록 안 됨
 
   const [att, stu, sch] = await Promise.all([
     fetchAttendanceByDate(today),
@@ -759,7 +764,7 @@ export async function autoMarkAbsent(sendSms = false): Promise<void> {
   for (const student of stu) {
     if (!student.className) continue;
     if (/고등|고교/.test(student.className)) continue;
-    const startTime = getStartTime(student.className, sch);
+    const startTime = openEntry?.time || getStartTime(student.className, sch);
     const [h, m] = startTime.split(':').map(Number);
     if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue;
     if (att.find(a => a.studentName === student.name)) continue;

@@ -56,10 +56,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const smsEnabled = sm['auto_absent_sms'] === 'true';
   const testPhone = (sm['sms_test_phone'] ?? '').replace(/[^0-9]/g, '');
   const closedDates = sm['closed_dates'] ? sm['closed_dates'].split(',').filter(Boolean) : [];
-  const openDates = sm['open_dates'] ? sm['open_dates'].split(',').filter(Boolean) : [];
+  let openDates: { date: string; time?: string }[] = [];
+  try { openDates = sm['open_dates'] ? JSON.parse(sm['open_dates']) : []; } catch { openDates = []; }
+  const openEntry = openDates.find(o => o.date === today);
 
   if (closedDates.includes(today)) return res.json({ skipped: 'closed' });
-  if (isWeekend && !openDates.includes(today)) return res.json({ skipped: 'weekend' });
+  if (isWeekend && !openEntry) return res.json({ skipped: 'weekend' });
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
   const AUTO_DELAY_MIN = 10;
@@ -82,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const className = student.class_name ?? '';
     if (!className || /고등|고교/.test(className)) continue;
 
-    const startTime = getStartTime(className, scheduleMap);
+    const startTime = openEntry?.time || getStartTime(className, scheduleMap);
     const [h, m] = startTime.split(':').map(Number);
     if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue;
     if (checkedIn.has(student.name)) continue;
