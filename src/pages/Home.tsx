@@ -72,6 +72,7 @@ export default function Home() {
 
       for (const student of stu) {
         if (!student.parentPhone || !student.className) continue;
+        if (/고등|고교/.test(student.className)) continue;
         const startTime = getStartTime(student.className, sch);
         const [h, m] = startTime.split(':').map(Number);
         if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue; // 아직 발송 시간 아님
