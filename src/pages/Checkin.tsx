@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAttendanceSms,
-  fetchClassSchedules, getStartTime, checkIfLate, getSchoolLocation, calcDistance, getGpsBypassUntil,
+  fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil,
   type Student, type ClassSchedule,
 } from '../lib/db';
 import { CheckCircle, Loader, MapPin, AlertCircle } from 'lucide-react';
@@ -79,7 +79,8 @@ export default function Checkin() {
       const startTime = getStartTime(student.className, schedules);
       const isLate = checkIfLate(startTime);
       const status = isLate ? 'late' : 'present';
-      await upsertAttendance({ studentName: student.name, date: today, status, note: '' });
+      const note = isLate ? `${calcMinutesLate(startTime)}분` : '';
+      await upsertAttendance({ studentName: student.name, date: today, status, note });
       localStorage.setItem(deviceKey, student.name);
       setCheckedIn(prev => new Set([...prev, student.name]));
       setSuccess({ name: student.name, isLate });

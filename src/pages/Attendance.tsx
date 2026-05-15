@@ -32,6 +32,7 @@ export default function Attendance() {
   // 일별
   const [date, setDate] = useState(toDateStr(new Date()));
   const [records, setRecords] = useState<Record<string, AttendanceRecord['status'] | null>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
 
   // 주별
@@ -84,8 +85,10 @@ export default function Attendance() {
   const loadDaily = async () => {
     const data = await fetchAttendanceByDate(date);
     const map: Record<string, AttendanceRecord['status'] | null> = {};
-    for (const r of data) map[r.studentName] = r.status;
+    const noteMap: Record<string, string> = {};
+    for (const r of data) { map[r.studentName] = r.status; noteMap[r.studentName] = r.note; }
     setRecords(map);
+    setNotes(noteMap);
   };
 
   const getWeekDates = (offset: number): Date[] => {
@@ -337,7 +340,12 @@ export default function Attendance() {
                 const isSaving = saving === student.name;
                 return (
                   <div key={student.id} className="flex items-center gap-3 px-4 py-3">
-                    <p className="flex-1 font-medium text-slate-800 text-sm">{student.name}</p>
+                    <div className="flex-1 flex items-center gap-2">
+                      <p className="font-medium text-slate-800 text-sm">{student.name}</p>
+                      {cur === 'late' && notes[student.name] && (
+                        <span className="text-xs text-yellow-600 font-medium">{notes[student.name]} 지각</span>
+                      )}
+                    </div>
                     {isSaving && <Loader size={14} className="animate-spin text-slate-400" />}
                     <div className="flex gap-1.5">
                       {(['present','late','absent'] as const).map(s => {

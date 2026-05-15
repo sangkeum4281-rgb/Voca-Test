@@ -624,9 +624,15 @@ export function getStartTime(className: string, schedules: ClassSchedule[]): str
 
 // 현재 시각(KST)이 수업 시작 시간보다 늦으면 지각
 export function checkIfLate(startTime: string): boolean {
-  // UTC + 9시간 = KST, 기기 타임존 무관하게 동작
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const nowMinutes = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
   const [h, m] = startTime.split(':').map(Number);
   return nowMinutes > h * 60 + m;
+}
+
+export function calcMinutesLate(startTime: string): number {
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const nowMinutes = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
+  const [h, m] = startTime.split(':').map(Number);
+  return Math.max(0, nowMinutes - (h * 60 + m));
 }
