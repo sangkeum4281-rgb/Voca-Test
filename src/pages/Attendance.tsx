@@ -6,7 +6,7 @@ import {
   type Student, type AttendanceRecord,
 } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader, ChevronLeft, ChevronRight, RotateCcw, CalendarDays, CalendarCheck, CalendarRange } from 'lucide-react';
+import { Loader, ChevronLeft, ChevronRight, RotateCcw, CalendarDays, CalendarCheck, CalendarRange, Printer } from 'lucide-react';
 
 const STATUS_CONFIG = {
   present: { label: '출석', short: '출', color: 'bg-green-100 text-green-700 border-green-300', cell: 'bg-green-100 text-green-700' },
@@ -181,6 +181,60 @@ export default function Attendance() {
     if (!monthlyByStudent[r.studentName]) monthlyByStudent[r.studentName] = {};
     monthlyByStudent[r.studentName][day] = r.status;
   }
+
+  const printMonthly = () => {
+    const lastDay = new Date(year, month, 0).getDate();
+    const days = Array.from({ length: lastDay }, (_, i) => i + 1);
+    const byClass: Record<string, Record<string, Record<number, AttendanceRecord['status']>>> = {};
+    for (const s of students) {
+      if (!s.className) continue;
+      if (!byClass[s.className]) byClass[s.className] = {};
+      byClass[s.className][s.name] = monthlyByStudent[s.name] ?? {};
+    }
+    const statusColor: Record<string, string> = {
+      present: '#dcfce7', late: '#fef9c3', absent: '#fee2e2',
+    };
+    const statusText: Record<string, string> = { present: '출', late: '지', absent: '결' };
+
+    const classHtml = Object.entries(byClass).map(([cls, stuMap]) => {
+      const rows = Object.entries(stuMap).map(([name, sMap]) => {
+        const pCnt = Object.values(sMap).filter(v => v === 'present').length;
+        const lCnt = Object.values(sMap).filter(v => v === 'late').length;
+        const aCnt = Object.values(sMap).filter(v => v === 'absent').length;
+        const cells = days.map(d => {
+          const st = sMap[d];
+          return `<td style="text-align:center;font-size:10px;width:22px;padding:2px;">${st ? `<span style="background:${statusColor[st]};padding:1px 3px;border-radius:3px;font-weight:bold;">${statusText[st]}</span>` : ''}</td>`;
+        }).join('');
+        return `<tr><td style="padding:3px 6px;font-weight:500;white-space:nowrap;">${name}</td>${cells}<td style="text-align:center;color:#16a34a;font-weight:bold;">${pCnt || ''}</td><td style="text-align:center;color:#ca8a04;font-weight:bold;">${lCnt || ''}</td><td style="text-align:center;color:#dc2626;font-weight:bold;">${aCnt || ''}</td></tr>`;
+      }).join('');
+      const headers = days.map(d => {
+        const dow = new Date(year, month - 1, d).getDay();
+        const color = dow === 0 ? '#ef4444' : dow === 6 ? '#3b82f6' : '#64748b';
+        return `<th style="width:22px;text-align:center;font-size:9px;color:${color};padding:2px;">${d}</th>`;
+      }).join('');
+      return `
+        <div style="page-break-after:always;padding:16px;">
+          <h2 style="font-size:16px;font-weight:bold;margin-bottom:4px;">최강학원 ${year}년 ${month}월 출결 현황</h2>
+          <h3 style="font-size:13px;color:#4338ca;margin-bottom:8px;">${cls}</h3>
+          <table style="border-collapse:collapse;font-size:11px;width:100%;">
+            <thead><tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+              <th style="text-align:left;padding:4px 6px;min-width:70px;">이름</th>${headers}
+              <th style="text-align:center;color:#16a34a;padding:4px;">출</th>
+              <th style="text-align:center;color:#ca8a04;padding:4px;">지</th>
+              <th style="text-align:center;color:#dc2626;padding:4px;">결</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }).join('');
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${year}년 ${month}월 출결</title>
+      <style>body{font-family:sans-serif;margin:0;}@media print{@page{margin:12mm;}}</style>
+      </head><body>${classHtml}<script>window.onload=()=>window.print();</script></body></html>`);
+    win.document.close();
+  };
 
   if (loading) return <div className="flex justify-center py-24"><Loader size={28} className="animate-spin text-indigo-400" /></div>;
 
@@ -494,11 +548,15 @@ export default function Attendance() {
                 </button>
               ))}
             </div>
-            {/* 월 이동 */}
+            {/* 월 이동 + PDF */}
             <div className="flex items-center gap-1 ml-auto">
               <button onClick={() => shiftMonth(-1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronLeft size={16} /></button>
               <p className="px-3 font-semibold text-slate-700 min-w-[90px] text-center">{year}년 {month}월</p>
               <button onClick={() => shiftMonth(1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronRight size={16} /></button>
+              <button onClick={printMonthly}
+                className="ml-2 flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">
+                <Printer size={13} /> PDF
+              </button>
             </div>
           </div>
 
