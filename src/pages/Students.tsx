@@ -552,37 +552,44 @@ export default function Students() {
             <p className="text-sm font-semibold text-indigo-700 mb-1">수업 시작 시간 설정</p>
             <p className="text-xs text-slate-500">QR 체크인 시 시작 시간 이후 도착하면 자동 지각 처리됩니다</p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-            {['1학년', '2학년', '3학년'].map(grade => (
-              <div key={grade} className="flex items-center justify-between px-5 py-4">
-                <span className="font-semibold text-slate-700 text-sm">{grade}</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    value={scheduleEdits[grade] ?? '16:30'}
-                    onChange={e => setScheduleEdits(prev => ({ ...prev, [grade]: e.target.value }))}
-                    className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  />
-                  <button
-                    onClick={async () => {
-                      await upsertClassSchedule(grade, scheduleEdits[grade] ?? '16:30');
-                      setSchedules(prev => {
-                        const exists = prev.find(s => s.gradeKey === grade);
-                        const t = scheduleEdits[grade] ?? '16:30';
-                        if (exists) return prev.map(s => s.gradeKey === grade ? { ...s, startTime: t } : s);
-                        return [...prev, { gradeKey: grade, startTime: t }];
-                      });
-                      alert(`${grade} 수업 시간이 저장되었습니다.`);
-                    }}
-                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700"
-                  >
-                    저장
-                  </button>
-                </div>
+          {(['중등부', '고등부'] as const).map(division => (
+            <div key={division}>
+              <p className="text-xs font-semibold text-slate-500 px-1 mb-1">{division}</p>
+              <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+                {['1학년', '2학년', '3학년'].map(grade => {
+                  const key = `${division} ${grade}`;
+                  return (
+                    <div key={key} className="flex items-center justify-between px-5 py-4">
+                      <span className="font-semibold text-slate-700 text-sm">{grade}</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={scheduleEdits[key] ?? '16:30'}
+                          onChange={e => setScheduleEdits(prev => ({ ...prev, [key]: e.target.value }))}
+                          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        />
+                        <button
+                          onClick={async () => {
+                            await upsertClassSchedule(key, scheduleEdits[key] ?? '16:30');
+                            setSchedules(prev => {
+                              const exists = prev.find(s => s.gradeKey === key);
+                              const t = scheduleEdits[key] ?? '16:30';
+                              if (exists) return prev.map(s => s.gradeKey === key ? { ...s, startTime: t } : s);
+                              return [...prev, { gradeKey: key, startTime: t }];
+                            });
+                            alert(`${key} 수업 시간이 저장되었습니다.`);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700"
+                        >
+                          저장
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-          <p className="text-xs text-slate-400 text-center">모든 학교의 동일 학년에 동일하게 적용됩니다</p>
+            </div>
+          ))}
 
           {/* 학원 위치 설정 */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">

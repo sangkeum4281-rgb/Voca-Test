@@ -338,6 +338,22 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
   }
 }
 
+export async function sendTestSms(to: string, text: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const apiKey    = import.meta.env.VITE_SOLAPI_API_KEY as string;
+    const apiSecret = import.meta.env.VITE_SOLAPI_API_SECRET as string;
+    const from      = (import.meta.env.VITE_SENDER_PHONE as string).replace(/[^0-9]/g, '');
+    const res = await fetch('https://api.solapi.com/messages/v4/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': await solapiSign(apiKey, apiSecret) },
+      body: JSON.stringify({ message: { to: to.replace(/[^0-9]/g, ''), from, text } }),
+    });
+    const result = await res.json();
+    if (!res.ok) return { success: false, error: result.errorMessage ?? JSON.stringify(result) };
+    return { success: true };
+  } catch (e) { return { success: false, error: String(e) }; }
+}
+
 export async function sendBulkSms(text: string): Promise<{ sent: number; failed: number }> {
   const apiKey    = import.meta.env.VITE_SOLAPI_API_KEY as string;
   const apiSecret = import.meta.env.VITE_SOLAPI_API_SECRET as string;
@@ -646,20 +662,28 @@ export async function upsertClassSchedule(gradeKey: string, startTime: string): 
   if (error) throw error;
 }
 
-// 학년별 기본 시간 (DB 로드 실패 시 폴백)
 const GRADE_DEFAULTS: Record<string, string> = {
-  '1학년': '16:30',
-  '2학년': '18:30',
-  '3학년': '16:30',
+  '중등부 1학년': '16:30',
+  '중등부 2학년': '18:30',
+  '중등부 3학년': '16:30',
+  '고등부 1학년': '16:30',
+  '고등부 2학년': '16:30',
+  '고등부 3학년': '16:30',
 };
 
-// 학생의 반에서 학년 추출 후 수업 시작 시간 반환
+function classToGradeKey(className: string): string | null {
+  const gradeMatch = className.match(/(\d+)학년/);
+  if (!gradeMatch) return null;
+  const grade = `${gradeMatch[1]}학년`;
+  const isHigh = /고등|고교/.test(className);
+  return `${isHigh ? '고등부' : '중등부'} ${grade}`;
+}
+
 export function getStartTime(className: string, schedules: ClassSchedule[]): string {
-  const gradeMatch = className.match(/(\d+학년)/);
-  if (!gradeMatch) return '16:30';
-  const grade = gradeMatch[1];
-  const schedule = schedules.find(s => s.gradeKey === grade);
-  return schedule?.startTime ?? GRADE_DEFAULTS[grade] ?? '16:30';
+  const key = classToGradeKey(className);
+  if (!key) return '16:30';
+  const schedule = schedules.find(s => s.gradeKey === key);
+  return schedule?.startTime ?? GRADE_DEFAULTS[key] ?? '16:30';
 }
 
 // 현재 시각(KST)이 수업 시작 시간보다 늦으면 지각
