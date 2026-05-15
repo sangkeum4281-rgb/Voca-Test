@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   fetchWordLists, fetchAnnouncements, fetchQna,
   fetchAttendanceByDate, fetchStudents, sendAttendanceSms,
-  fetchClassSchedules, getStartTime, getAutoAbsentSms,
+  fetchClassSchedules, getStartTime, getAutoAbsentSms, sendBulkSms,
   type Announcement, type QnaItem, type AttendanceRecord, type Student,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send } from 'lucide-react';
 
 function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
+function isWeekend() { const d = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCDay(); return d === 0 || d === 6; }
 
 export default function Home() {
   const { isTeacher } = useAuth();
@@ -20,24 +21,9 @@ export default function Home() {
   const [todayAtt, setTodayAtt] = useState<AttendanceRecord[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sendingMap, setSendingMap] = useState<Record<string, boolean>>({});
-  const [bulkSending, setBulkSending] = useState(false);
+  const [noticeText, setNoticeText] = useState('');
+  const [noticeSending, setNoticeSending] = useState(false);
 
-  // 오늘 날짜 기준으로 localStorage에서 발송 기록 복원
-  const todayKey = `sms-sent-${toDateStr(new Date())}`;
-  const [sentMap, setSentMap] = useState<Record<string, boolean>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(todayKey) ?? '{}');
-    } catch { return {}; }
-  });
-
-  const markSent = (key: string) => {
-    setSentMap(p => {
-      const next = { ...p, [key]: true };
-      localStorage.setItem(todayKey, JSON.stringify(next));
-      return next;
-    });
-  };
 
   const fetchAll = () => {
     const today = toDateStr(new Date());
@@ -70,6 +56,7 @@ export default function Home() {
     const AUTO_DELAY_MIN = 10;
     const interval = setInterval(async () => {
       if (!isTeacher) return;
+      if (isWeekend()) return;
       const enabled = await getAutoAbsentSms();
       if (!enabled) return;
 
@@ -117,48 +104,15 @@ export default function Home() {
   const late    = todayAtt.filter(r => r.status === 'late').length;
   const absent  = todayAtt.filter(r => r.status === 'absent').length;
 
-  const today = toDateStr(new Date());
-
-  const handleSendSms = async (studentName: string, status: 'absent' | 'late') => {
-    const key = `${studentName}-${status}`;
-    setSendingMap(p => ({ ...p, [key]: true }));
-    const result = await sendAttendanceSms(studentName, status, today);
-    setSendingMap(p => ({ ...p, [key]: false }));
-    if (result.success) {
-      markSent(key);
-    } else {
-      alert(`문자 발송 실패 (${studentName}): ${result.error}`);
-    }
-  };
-
-  const handleSendAll = async () => {
-    if (!confirm('결석·지각 학생 전체에게 문자를 발송하시겠습니까?')) return;
-    setBulkSending(true);
-    const targets: { name: string; status: 'absent' | 'late' }[] = [];
-    for (const { absentNames, lateNames } of absentByClass) {
-      for (const name of absentNames) {
-        const hasPhone = students.find(s => s.name === name)?.parentPhone;
-        const key = `${name}-absent`;
-        if (hasPhone && !sentMap[key]) targets.push({ name, status: 'absent' });
-      }
-      for (const name of lateNames) {
-        const hasPhone = students.find(s => s.name === name)?.parentPhone;
-        const key = `${name}-late`;
-        if (hasPhone && !sentMap[key]) targets.push({ name, status: 'late' });
-      }
-    }
-    const errors: string[] = [];
-    for (const { name, status } of targets) {
-      const result = await sendAttendanceSms(name, status, today);
-      const key = `${name}-${status}`;
-      if (result.success) {
-        markSent(key);
-      } else {
-        errors.push(`${name}: ${result.error}`);
-      }
-    }
-    setBulkSending(false);
-    if (errors.length > 0) alert(`일부 발송 실패:\n${errors.join('\n')}`);
+  const handleSendNotice = async () => {
+    if (!noticeText.trim()) return;
+    if (isWeekend()) { alert('주말에는 문자를 발송할 수 없습니다.'); return; }
+    if (!confirm(`전체 학부모에게 문자를 발송하시겠습니까?\n\n${noticeText}`)) return;
+    setNoticeSending(true);
+    const { sent, failed } = await sendBulkSms(`[최강학원] ${noticeText}`);
+    setNoticeSending(false);
+    setNoticeText('');
+    alert(`발송 완료: ${sent}명 성공${failed > 0 ? `, ${failed}명 실패` : ''}`);
   };
 
   // 반별 결석·지각자 그룹
@@ -208,61 +162,54 @@ export default function Home() {
           <div className="flex items-center gap-2 px-5 py-4 border-b border-red-100">
             <XCircle size={16} className="text-red-500" />
             <h2 className="font-semibold text-slate-700">오늘 결석·지각 현황</h2>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-400 ml-1">
               {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
             </span>
-            {isTeacher && (
-              <button onClick={handleSendAll} disabled={bulkSending}
-                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-                <Send size={12} />
-                {bulkSending ? '발송 중...' : '전체 문자 발송'}
-              </button>
-            )}
           </div>
           <div className="divide-y divide-slate-100">
             {absentByClass.map(({ cls, absentNames, lateNames }) => (
               <div key={cls} className="px-5 py-3">
                 <p className="text-xs font-semibold text-slate-500 mb-2">{cls}</p>
                 <div className="flex flex-wrap gap-2">
-                  {absentNames.map(name => {
-                    const key = `${name}-absent`;
-                    const sending = sendingMap[key];
-                    const sent = sentMap[key];
-                    const hasPhone = students.find(s => s.name === name)?.parentPhone;
-                    return (
-                      <div key={name} className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">
-                        <XCircle size={11} className="text-red-500" />
-                        <span className="text-xs font-medium text-red-600">{name}</span>
-                        {isTeacher && hasPhone && (
-                          <button onClick={() => handleSendSms(name, 'absent')} disabled={sending || sent}
-                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${sent ? 'bg-green-100 text-green-600' : 'bg-red-200 text-red-700 hover:bg-red-300'}`}>
-                            {sending ? '…' : sent ? '발송됨' : <Send size={9} />}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {lateNames.map(name => {
-                    const key = `${name}-late`;
-                    const sending = sendingMap[key];
-                    const sent = sentMap[key];
-                    const hasPhone = students.find(s => s.name === name)?.parentPhone;
-                    return (
-                      <div key={name} className="inline-flex items-center gap-1.5 bg-yellow-50 border border-yellow-200 px-2.5 py-1 rounded-full">
-                        <Clock size={11} className="text-yellow-500" />
-                        <span className="text-xs font-medium text-yellow-600">{name}</span>
-                        {isTeacher && hasPhone && (
-                          <button onClick={() => handleSendSms(name, 'late')} disabled={sending || sent}
-                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${sent ? 'bg-green-100 text-green-600' : 'bg-yellow-200 text-yellow-700 hover:bg-yellow-300'}`}>
-                            {sending ? '…' : sent ? '발송됨' : <Send size={9} />}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {absentNames.map(name => (
+                    <div key={name} className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">
+                      <XCircle size={11} className="text-red-500" />
+                      <span className="text-xs font-medium text-red-600">{name}</span>
+                    </div>
+                  ))}
+                  {lateNames.map(name => (
+                    <div key={name} className="inline-flex items-center gap-1.5 bg-yellow-50 border border-yellow-200 px-2.5 py-1 rounded-full">
+                      <Clock size={11} className="text-yellow-500" />
+                      <span className="text-xs font-medium text-yellow-600">{name}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 공지 문자 발송 */}
+      {isTeacher && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+            <Send size={16} className="text-indigo-500" />
+            <h2 className="font-semibold text-slate-700">전체 학부모 문자 발송</h2>
+          </div>
+          <div className="px-5 py-4 flex gap-3">
+            <textarea
+              value={noticeText}
+              onChange={e => setNoticeText(e.target.value)}
+              placeholder="내용을 입력하세요. 앞에 [최강학원]이 자동으로 붙습니다."
+              rows={3}
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <button onClick={handleSendNotice} disabled={noticeSending || !noticeText.trim()}
+              className="flex-shrink-0 flex flex-col items-center justify-center gap-1 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors">
+              {noticeSending ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
+              <span className="text-xs">{noticeSending ? '발송중' : '전송'}</span>
+            </button>
           </div>
         </div>
       )}

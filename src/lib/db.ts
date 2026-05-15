@@ -338,6 +338,28 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
   }
 }
 
+export async function sendBulkSms(text: string): Promise<{ sent: number; failed: number }> {
+  const apiKey    = import.meta.env.VITE_SOLAPI_API_KEY as string;
+  const apiSecret = import.meta.env.VITE_SOLAPI_API_SECRET as string;
+  const from      = (import.meta.env.VITE_SENDER_PHONE as string).replace(/[^0-9]/g, '');
+
+  const { data } = await supabase.from('students').select('parent_phone').not('parent_phone', 'is', null).neq('parent_phone', '');
+  const phones = [...new Set((data ?? []).map((r: { parent_phone: string }) => r.parent_phone.replace(/[^0-9]/g, '')).filter(Boolean))];
+
+  let sent = 0, failed = 0;
+  for (const to of phones) {
+    try {
+      const res = await fetch('https://api.solapi.com/messages/v4/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': await solapiSign(apiKey, apiSecret) },
+        body: JSON.stringify({ message: { to, from, text } }),
+      });
+      res.ok ? sent++ : failed++;
+    } catch { failed++; }
+  }
+  return { sent, failed };
+}
+
 export async function deleteStudent(id: string): Promise<void> {
   // 학생 이름 먼저 조회
   const { data: student } = await supabase.from('students').select('name').eq('id', id).single();
