@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   fetchWordLists, fetchAnnouncements, fetchQna,
   fetchAttendanceByDate, fetchStudents, sendAttendanceSms,
+  fetchClassSchedules, getStartTime, getAutoAbsentSms,
   type Announcement, type QnaItem, type AttendanceRecord, type Student,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -46,6 +47,7 @@ export default function Home() {
       fetchQna(),
       fetchAttendanceByDate(today),
       fetchStudents(),
+      fetchClassSchedules(),
     ]).then(([wl, ann, q, att, stu]) => {
       setWordLists(wl);
       setAnnouncements(ann.slice(0, 3));
@@ -58,11 +60,52 @@ export default function Home() {
 
   useEffect(() => {
     fetchAll();
-    // 탭 전환 후 돌아올 때 자동 새로고침
     const onVisible = () => { if (document.visibilityState === 'visible') fetchAll(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
+
+  // 자동 결석 문자 발송 (1분마다 체크)
+  useEffect(() => {
+    const AUTO_DELAY_MIN = 10;
+    const interval = setInterval(async () => {
+      if (!isTeacher) return;
+      const enabled = await getAutoAbsentSms();
+      if (!enabled) return;
+
+      const today = toDateStr(new Date());
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
+
+      const [att, stu, sch] = await Promise.all([
+        fetchAttendanceByDate(today),
+        fetchStudents(),
+        fetchClassSchedules(),
+      ]);
+
+      for (const student of stu) {
+        if (!student.parentPhone || !student.className) continue;
+        const startTime = getStartTime(student.className, sch);
+        const [h, m] = startTime.split(':').map(Number);
+        if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue; // 아직 발송 시간 아님
+
+        const hasRecord = att.find(a => a.studentName === student.name);
+        if (hasRecord) continue; // 이미 체크인함
+
+        const key = `${student.name}-auto-absent`;
+        const alreadySent = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}')[key];
+        if (alreadySent) continue;
+
+        const result = await sendAttendanceSms(student.name, 'absent', today);
+        if (result.success) {
+          const stored = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}');
+          stored[key] = true;
+          localStorage.setItem(`sms-sent-${today}`, JSON.stringify(stored));
+        }
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [isTeacher]);
 
   if (loading) return <div className="flex justify-center py-24"><Loader size={28} className="animate-spin text-indigo-400" /></div>;
 

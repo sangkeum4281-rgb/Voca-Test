@@ -5,7 +5,7 @@ import {
   fetchStudents, addStudent, deleteStudent, updateStudentPhone,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
   fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
-  getGpsBypassUntil, setGpsBypassUntil,
+  getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
   type Student, type AttendanceRecord, type ClassSchedule,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -57,6 +57,7 @@ export default function Students() {
   const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
   const [savingPos, setSavingPos] = useState(false);
   const [gpsBypass, setGpsBypass] = useState(false);
+  const [autoAbsentSms, setAutoAbsentSmsState] = useState(false);
 
   const downloadQR = async () => {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + '/checkin')}`;
@@ -79,12 +80,13 @@ export default function Students() {
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
-    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil()]).then(([s, wl, sch, loc, bypassUntil]) => {
+    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms()]).then(([s, wl, sch, loc, bypassUntil, autoSms]) => {
       setStudents(s);
       setWordLists(wl);
       setSchedules(sch);
       if (loc) setSchoolPos(loc);
       if (bypassUntil !== null && Date.now() < bypassUntil) setGpsBypass(true);
+      setAutoAbsentSmsState(autoSms);
       const edits: Record<string, string> = {};
       sch.forEach(sc => { edits[sc.gradeKey] = sc.startTime; });
       setScheduleEdits(edits);
@@ -282,6 +284,15 @@ export default function Students() {
                 }}
                   className={`text-xs px-2 py-1 rounded-md transition-colors ${gpsBypass ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-orange-500'}`}>
                   {gpsBypass ? 'GPS 우회 ON' : 'GPS 우회'}
+                </button>
+                <button onClick={async () => {
+                  const next = !autoAbsentSms;
+                  if (next && !confirm('수업 시작 10분 후 미체크인 학생 학부모에게 자동 문자를 발송합니다. 활성화하시겠습니까?')) return;
+                  await setAutoAbsentSms(next);
+                  setAutoAbsentSmsState(next);
+                }}
+                  className={`text-xs px-2 py-1 rounded-md transition-colors ${autoAbsentSms ? 'bg-red-500 text-white' : 'text-slate-400 hover:text-red-500'}`}>
+                  {autoAbsentSms ? '자동문자 ON' : '자동문자'}
                 </button>
               </div>
             </div>

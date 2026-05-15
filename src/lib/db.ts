@@ -557,6 +557,18 @@ export async function setSchoolLocation(lat: number, lng: number): Promise<void>
   if (error) throw error;
 }
 
+export async function getAutoAbsentSms(): Promise<boolean> {
+  const { data } = await supabase.from('school_settings').select('value').eq('key', 'auto_absent_sms').single();
+  return data?.value === 'true';
+}
+
+export async function setAutoAbsentSms(enabled: boolean): Promise<void> {
+  await supabase.from('school_settings').upsert(
+    { key: 'auto_absent_sms', value: String(enabled) },
+    { onConflict: 'key' }
+  );
+}
+
 export async function getGpsBypassUntil(): Promise<number | null> {
   const { data } = await supabase.from('school_settings').select('value').eq('key', 'gps_bypass_until').single();
   if (!data) return null;
