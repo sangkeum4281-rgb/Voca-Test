@@ -289,10 +289,6 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
       .eq('name', studentName)
       .single();
 
-    if (!student?.parent_phone) {
-      return { success: false, error: '학부모 전화번호가 등록되지 않았습니다' };
-    }
-
     const apiKey    = import.meta.env.VITE_SOLAPI_API_KEY as string;
     const apiSecret = import.meta.env.VITE_SOLAPI_API_SECRET as string;
     const senderRaw = import.meta.env.VITE_SENDER_PHONE as string;
@@ -303,7 +299,9 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
 
     const from = senderRaw.replace(/[^0-9]/g, '');
     const testPhone = await getSmsTestPhone();
-    const to = testPhone || student.parent_phone.replace(/[^0-9]/g, '');
+    const parentPhone = student?.parent_phone?.replace(/[^0-9]/g, '') ?? '';
+    const to = testPhone || parentPhone;
+    if (!to) return { success: false, error: '학부모 전화번호가 등록되지 않았습니다' };
 
     const dateStr = new Date(date + 'T00:00:00+09:00')
       .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
