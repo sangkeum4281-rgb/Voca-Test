@@ -78,13 +78,14 @@ export default function Checkin() {
     try {
       const startTime = getStartTime(student.className, schedules);
       const isLate = checkIfLate(startTime);
+      const minutesLate = isLate ? calcMinutesLate(startTime) : 0;
       const status = isLate ? 'late' : 'present';
-      const note = isLate ? `${calcMinutesLate(startTime)}분` : '';
+      const note = isLate ? `${minutesLate}분` : '';
       await upsertAttendance({ studentName: student.name, date: today, status, note });
       localStorage.setItem(deviceKey, student.name);
       setCheckedIn(prev => new Set([...prev, student.name]));
       setSuccess({ name: student.name, isLate });
-      if (student.parentPhone) sendAttendanceSms(student.name, status, today);
+      if (student.parentPhone) sendAttendanceSms(student.name, status, today, minutesLate || undefined);
       setTimeout(() => setSuccess(null), 4000);
     } finally {
       setProcessing(null);
