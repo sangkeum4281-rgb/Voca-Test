@@ -86,8 +86,7 @@ export default function Attendance() {
   const loadDaily = async () => {
     const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
     const today = kstNow.toISOString().slice(0, 10);
-    const isWeekend = kstNow.getUTCDay() === 0 || kstNow.getUTCDay() === 6;
-    if (isTeacher && date === today && !isWeekend) {
+    if (isTeacher && date === today) {
       const smsEnabled = await getAutoAbsentSms();
       await autoMarkAbsent(smsEnabled);
     }

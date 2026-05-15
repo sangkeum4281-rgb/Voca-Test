@@ -51,7 +51,7 @@ export default function Home() {
 
   // 자동 결석 처리 + 문자 (페이지 로드 시 + 1분마다)
   useEffect(() => {
-    if (!isTeacher || isWeekend()) return;
+    if (!isTeacher) return;
     const run = async () => {
       const enabled = await getAutoAbsentSms();
       await autoMarkAbsent(enabled);
