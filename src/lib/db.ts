@@ -551,6 +551,23 @@ export async function setSchoolLocation(lat: number, lng: number): Promise<void>
   if (error) throw error;
 }
 
+export async function getGpsBypassUntil(): Promise<number | null> {
+  const { data } = await supabase.from('school_settings').select('value').eq('key', 'gps_bypass_until').single();
+  if (!data) return null;
+  return Number(data.value);
+}
+
+export async function setGpsBypassUntil(until: number | null): Promise<void> {
+  if (until === null) {
+    await supabase.from('school_settings').delete().eq('key', 'gps_bypass_until');
+  } else {
+    await supabase.from('school_settings').upsert(
+      { key: 'gps_bypass_until', value: String(until) },
+      { onConflict: 'key' }
+    );
+  }
+}
+
 // Haversine 거리 계산 (미터)
 export function calcDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAttendanceSms,
-  fetchClassSchedules, getStartTime, checkIfLate, getSchoolLocation, calcDistance,
+  fetchClassSchedules, getStartTime, checkIfLate, getSchoolLocation, calcDistance, getGpsBypassUntil,
   type Student, type ClassSchedule,
 } from '../lib/db';
 import { CheckCircle, Loader, MapPin, AlertCircle } from 'lucide-react';
@@ -42,8 +42,8 @@ export default function Checkin() {
           // 학원 위치 미설정 → 일단 허용 (선생님이 아직 안 설정한 경우)
           setGeoState('no_school_set');
         } else {
-          const bypass = localStorage.getItem('gps-bypass');
-          const bypassed = bypass && Date.now() < Number(bypass);
+          const bypassUntil = await getGpsBypassUntil();
+          const bypassed = bypassUntil !== null && Date.now() < bypassUntil;
           const dist = calcDistance(latitude, longitude, school.lat, school.lng);
           setDistance(Math.round(dist));
           setGeoState(bypassed || dist <= RADIUS_M ? 'ok' : 'out_of_range');

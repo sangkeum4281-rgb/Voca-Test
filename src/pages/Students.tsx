@@ -5,6 +5,7 @@ import {
   fetchStudents, addStudent, deleteStudent, updateStudentPhone,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
   fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
+  getGpsBypassUntil, setGpsBypassUntil,
   type Student, type AttendanceRecord, type ClassSchedule,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -55,10 +56,7 @@ export default function Students() {
   const [scheduleEdits, setScheduleEdits] = useState<Record<string, string>>({});
   const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
   const [savingPos, setSavingPos] = useState(false);
-  const [gpsBypass, setGpsBypass] = useState(() => {
-    const v = localStorage.getItem('gps-bypass');
-    return !!v && Date.now() < Number(v);
-  });
+  const [gpsBypass, setGpsBypass] = useState(false);
 
   const downloadQR = async () => {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + '/checkin')}`;
@@ -81,11 +79,12 @@ export default function Students() {
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
-    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation()]).then(([s, wl, sch, loc]) => {
+    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil()]).then(([s, wl, sch, loc, bypassUntil]) => {
       setStudents(s);
       setWordLists(wl);
       setSchedules(sch);
       if (loc) setSchoolPos(loc);
+      if (bypassUntil !== null && Date.now() < bypassUntil) setGpsBypass(true);
       const edits: Record<string, string> = {};
       sch.forEach(sc => { edits[sc.gradeKey] = sc.startTime; });
       setScheduleEdits(edits);
@@ -272,12 +271,12 @@ export default function Students() {
                   className="text-xs text-slate-400 hover:text-red-500 transition-colors">
                   초기화
                 </button>
-                <button onClick={() => {
+                <button onClick={async () => {
                   if (gpsBypass) {
-                    localStorage.removeItem('gps-bypass');
+                    await setGpsBypassUntil(null);
                     setGpsBypass(false);
                   } else {
-                    localStorage.setItem('gps-bypass', String(Date.now() + 2 * 60 * 60 * 1000));
+                    await setGpsBypassUntil(Date.now() + 2 * 60 * 60 * 1000);
                     setGpsBypass(true);
                   }
                 }}
