@@ -698,8 +698,16 @@ function classToGradeKey(className: string): string | null {
 export function getStartTime(className: string, schedules: ClassSchedule[]): string {
   const key = classToGradeKey(className);
   if (!key) return '16:30';
+  // 신 형식 먼저 ('중등부 1학년')
   const schedule = schedules.find(s => s.gradeKey === key);
-  return schedule?.startTime ?? GRADE_DEFAULTS[key] ?? '16:30';
+  if (schedule) return schedule.startTime;
+  // 구 형식 호환 ('1학년') — DB 마이그레이션 전까지 폴백
+  const gradeMatch = className.match(/(\d+)학년/);
+  if (gradeMatch) {
+    const old = schedules.find(s => s.gradeKey === `${gradeMatch[1]}학년`);
+    if (old) return old.startTime;
+  }
+  return GRADE_DEFAULTS[key] ?? '16:30';
 }
 
 // 현재 시각(KST)이 수업 시작 시간보다 늦으면 지각

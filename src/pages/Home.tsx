@@ -4,6 +4,7 @@ import {
   fetchWordLists, fetchAnnouncements, fetchQna,
   fetchAttendanceByDate, fetchStudents, sendAttendanceSms, upsertAttendance,
   fetchClassSchedules, getStartTime, getAutoAbsentSms, sendBulkSms,
+
   type Announcement, type QnaItem, type AttendanceRecord, type Student,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -33,7 +34,6 @@ export default function Home() {
       fetchQna(),
       fetchAttendanceByDate(today),
       fetchStudents(),
-      fetchClassSchedules(),
     ]).then(([wl, ann, q, att, stu]) => {
       setWordLists(wl);
       setAnnouncements(ann.slice(0, 3));
