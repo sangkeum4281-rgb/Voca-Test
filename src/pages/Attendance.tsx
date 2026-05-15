@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   fetchStudents, fetchAttendanceByDate,
   fetchAttendanceByMonth, fetchAttendanceByWeek,
-  upsertAttendance, deleteAttendance,
+  upsertAttendance, deleteAttendance, autoMarkAbsent,
   type Student, type AttendanceRecord,
 } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
@@ -83,6 +83,8 @@ export default function Attendance() {
   }, [year, month, teacherTab]);
 
   const loadDaily = async () => {
+    const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    if (isTeacher && date === today) await autoMarkAbsent(false);
     const data = await fetchAttendanceByDate(date);
     const map: Record<string, AttendanceRecord['status'] | null> = {};
     const noteMap: Record<string, string> = {};

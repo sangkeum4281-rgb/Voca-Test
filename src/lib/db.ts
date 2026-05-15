@@ -722,3 +722,40 @@ export function calcMinutesLate(startTime: string): number {
   const [h, m] = startTime.split(':').map(Number);
   return Math.max(0, nowMinutes - (h * 60 + m));
 }
+
+// 수업 시작 10분 후 미체크인 중등부 학생 자동 결석 처리
+export async function autoMarkAbsent(sendSms = false): Promise<void> {
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
+  const AUTO_DELAY_MIN = 10;
+
+  const [att, stu, sch] = await Promise.all([
+    fetchAttendanceByDate(today),
+    fetchStudents(),
+    fetchClassSchedules(),
+  ]);
+
+  for (const student of stu) {
+    if (!student.className) continue;
+    if (/고등|고교/.test(student.className)) continue;
+    const startTime = getStartTime(student.className, sch);
+    const [h, m] = startTime.split(':').map(Number);
+    if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue;
+    if (att.find(a => a.studentName === student.name)) continue;
+
+    await upsertAttendance({ studentName: student.name, date: today, status: 'absent', note: '' });
+
+    if (sendSms && student.parentPhone) {
+      const key = `${student.name}-absent`;
+      const stored = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}');
+      if (!stored[key]) {
+        const result = await sendAttendanceSms(student.name, 'absent', today);
+        if (result.success) {
+          stored[key] = true;
+          localStorage.setItem(`sms-sent-${today}`, JSON.stringify(stored));
+        }
+      }
+    }
+  }
+}

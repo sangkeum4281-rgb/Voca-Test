@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   fetchWordLists, fetchAnnouncements, fetchQna,
-  fetchAttendanceByDate, fetchStudents, sendAttendanceSms, upsertAttendance,
-  fetchClassSchedules, getStartTime, getAutoAbsentSms, sendBulkSms,
-
+  fetchAttendanceByDate, fetchStudents,
+  getAutoAbsentSms, sendBulkSms, autoMarkAbsent,
   type Announcement, type QnaItem, type AttendanceRecord, type Student,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -51,48 +50,16 @@ export default function Home() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
-  // 자동 결석 문자 발송 (1분마다 체크)
+  // 자동 결석 처리 + 문자 (페이지 로드 시 + 1분마다)
   useEffect(() => {
-    const AUTO_DELAY_MIN = 10;
-    const interval = setInterval(async () => {
-      if (!isTeacher) return;
-      if (isWeekend()) return;
+    if (!isTeacher || isWeekend()) return;
+    const run = async () => {
       const enabled = await getAutoAbsentSms();
-      if (!enabled) return;
-
-      const today = toDateStr(new Date());
-      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-      const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
-
-      const [att, stu, sch] = await Promise.all([
-        fetchAttendanceByDate(today),
-        fetchStudents(),
-        fetchClassSchedules(),
-      ]);
-
-      for (const student of stu) {
-        if (!student.parentPhone || !student.className) continue;
-        if (/고등|고교/.test(student.className)) continue;
-        const startTime = getStartTime(student.className, sch);
-        const [h, m] = startTime.split(':').map(Number);
-        if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue; // 아직 발송 시간 아님
-
-        const hasRecord = att.find(a => a.studentName === student.name);
-        if (hasRecord) continue; // 이미 체크인함
-
-        const key = `${student.name}-absent`;
-        const alreadySent = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}')[key];
-        if (alreadySent) continue;
-
-        await upsertAttendance({ studentName: student.name, date: today, status: 'absent', note: '' });
-        const result = await sendAttendanceSms(student.name, 'absent', today);
-        if (result.success) {
-          const stored = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}');
-          stored[key] = true;
-          localStorage.setItem(`sms-sent-${today}`, JSON.stringify(stored));
-        }
-      }
-    }, 60_000);
+      await autoMarkAbsent(enabled);
+      if (enabled) fetchAll(); // 결석 처리 후 화면 갱신
+    };
+    run();
+    const interval = setInterval(run, 60_000);
     return () => clearInterval(interval);
   }, [isTeacher]);
 
