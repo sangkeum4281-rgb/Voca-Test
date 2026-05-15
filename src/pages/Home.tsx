@@ -92,7 +92,7 @@ export default function Home() {
         const hasRecord = att.find(a => a.studentName === student.name);
         if (hasRecord) continue; // 이미 체크인함
 
-        const key = `${student.name}-auto-absent`;
+        const key = `${student.name}-absent`;
         const alreadySent = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}')[key];
         if (alreadySent) continue;
 
