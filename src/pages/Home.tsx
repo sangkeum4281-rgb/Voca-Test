@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   fetchWordLists, fetchAnnouncements, fetchQna,
-  fetchAttendanceByDate, fetchStudents, sendAttendanceSms,
+  fetchAttendanceByDate, fetchStudents, sendAttendanceSms, upsertAttendance,
   fetchClassSchedules, getStartTime, getAutoAbsentSms, sendBulkSms,
   type Announcement, type QnaItem, type AttendanceRecord, type Student,
 } from '../lib/db';
@@ -84,6 +84,7 @@ export default function Home() {
         const alreadySent = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}')[key];
         if (alreadySent) continue;
 
+        await upsertAttendance({ studentName: student.name, date: today, status: 'absent', note: '' });
         const result = await sendAttendanceSms(student.name, 'absent', today);
         if (result.success) {
           const stored = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}');
