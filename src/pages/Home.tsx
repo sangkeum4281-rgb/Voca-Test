@@ -53,7 +53,7 @@ export default function Home() {
 
   // 자동 결석 문자 발송 (1분마다 체크)
   useEffect(() => {
-    const AUTO_DELAY_MIN = 1;
+    const AUTO_DELAY_MIN = 10;
     const interval = setInterval(async () => {
       if (!isTeacher) return;
       if (isWeekend()) return;
