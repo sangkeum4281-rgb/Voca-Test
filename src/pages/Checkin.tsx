@@ -6,8 +6,6 @@ import {
 } from '../lib/db';
 import { CheckCircle, Loader, MapPin, AlertCircle } from 'lucide-react';
 
-function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
-
 const RADIUS_M = 100; // 허용 반경 (미터)
 
 type GeoState = 'checking' | 'ok' | 'denied' | 'out_of_range' | 'no_school_set';
@@ -23,7 +21,7 @@ export default function Checkin() {
   const [success, setSuccess] = useState<{ name: string; isLate: boolean } | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
 
-  const today = toDateStr(new Date());
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const deviceKey = `checkin-${today}`;
   const alreadyDoneByDevice = localStorage.getItem(deviceKey);
 
@@ -85,7 +83,7 @@ export default function Checkin() {
       localStorage.setItem(deviceKey, student.name);
       setCheckedIn(prev => new Set([...prev, student.name]));
       setSuccess({ name: student.name, isLate });
-      if (student.parentPhone) sendAttendanceSms(student.name, status, today, minutesLate || undefined);
+      sendAttendanceSms(student.name, status, today, minutesLate || undefined);
       setTimeout(() => setSuccess(null), 4000);
     } finally {
       setProcessing(null);

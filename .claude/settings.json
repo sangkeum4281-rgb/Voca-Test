@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/gimtaeheon/vocab-quiz add -A)",
+      "Bash(git -C /Users/gimtaeheon/vocab-quiz commit -m ' *)"
+    ]
+  }
+}

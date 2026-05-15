@@ -609,6 +609,21 @@ export async function setSmsTestPhone(phone: string): Promise<void> {
   );
 }
 
+export async function getSpecialDates(): Promise<{ closed: string[]; open: string[] }> {
+  const { data } = await supabase.from('school_settings').select('key,value').in('key', ['closed_dates', 'open_dates']);
+  const map: Record<string, string> = {};
+  for (const row of data ?? []) map[row.key] = row.value;
+  const parse = (v: string) => v ? v.split(',').filter(Boolean) : [];
+  return { closed: parse(map['closed_dates'] ?? ''), open: parse(map['open_dates'] ?? '') };
+}
+
+export async function setSpecialDates(closed: string[], open: string[]): Promise<void> {
+  await supabase.from('school_settings').upsert([
+    { key: 'closed_dates', value: closed.join(',') },
+    { key: 'open_dates', value: open.join(',') },
+  ], { onConflict: 'key' });
+}
+
 export async function getAutoAbsentSms(): Promise<boolean> {
   const { data } = await supabase.from('school_settings').select('value').eq('key', 'auto_absent_sms').single();
   return data?.value === 'true';
@@ -725,10 +740,15 @@ export function calcMinutesLate(startTime: string): number {
 
 // 수업 시작 10분 후 미체크인 중등부 학생 자동 결석 처리
 export async function autoMarkAbsent(sendSms = false): Promise<void> {
-  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const today = kstNow.toISOString().slice(0, 10);
   const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
   const AUTO_DELAY_MIN = 10;
+  const isWeekend = kstNow.getUTCDay() === 0 || kstNow.getUTCDay() === 6;
+
+  const { closed, open } = await getSpecialDates();
+  if (closed.includes(today)) return; // 휴원일
+  if (isWeekend && !open.includes(today)) return; // 주말인데 보강 등록 안 됨
 
   const [att, stu, sch] = await Promise.all([
     fetchAttendanceByDate(today),

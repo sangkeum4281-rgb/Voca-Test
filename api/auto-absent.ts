@@ -43,17 +43,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (isWeekendKST()) return res.json({ skipped: 'weekend' });
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const today = kst.toISOString().slice(0, 10);
+  const isWeekend = kst.getUTCDay() === 0 || kst.getUTCDay() === 6;
 
-  const { data: autoSetting } = await supabase
-    .from('school_settings').select('value').eq('key', 'auto_absent_sms').single();
-  const smsEnabled = autoSetting?.value === 'true';
+  const { data: settings } = await supabase
+    .from('school_settings').select('key,value')
+    .in('key', ['auto_absent_sms', 'sms_test_phone', 'closed_dates', 'open_dates']);
+  const sm: Record<string, string> = {};
+  for (const r of settings ?? []) sm[r.key] = r.value;
 
-  const { data: testSetting } = await supabase
-    .from('school_settings').select('value').eq('key', 'sms_test_phone').single();
-  const testPhone = (testSetting?.value ?? '').replace(/[^0-9]/g, '');
+  const smsEnabled = sm['auto_absent_sms'] === 'true';
+  const testPhone = (sm['sms_test_phone'] ?? '').replace(/[^0-9]/g, '');
+  const closedDates = sm['closed_dates'] ? sm['closed_dates'].split(',').filter(Boolean) : [];
+  const openDates = sm['open_dates'] ? sm['open_dates'].split(',').filter(Boolean) : [];
 
-  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  if (closedDates.includes(today)) return res.json({ skipped: 'closed' });
+  if (isWeekend && !openDates.includes(today)) return res.json({ skipped: 'weekend' });
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
   const AUTO_DELAY_MIN = 10;

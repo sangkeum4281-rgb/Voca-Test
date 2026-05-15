@@ -10,7 +10,6 @@ import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send } from 'lucide-react';
 
-function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
 function isWeekend() { const d = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCDay(); return d === 0 || d === 6; }
 
 export default function Home() {
@@ -26,7 +25,7 @@ export default function Home() {
 
 
   const fetchAll = () => {
-    const today = toDateStr(new Date());
+    const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
     Promise.all([
       fetchWordLists(),
       fetchAnnouncements(),

@@ -6,7 +6,7 @@ import {
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
   fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
-  getSmsTestPhone, setSmsTestPhone,
+  getSmsTestPhone, setSmsTestPhone, getSpecialDates, setSpecialDates,
   type Student, type AttendanceRecord, type ClassSchedule,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -61,6 +61,9 @@ export default function Students() {
   const [autoAbsentSms, setAutoAbsentSmsState] = useState(false);
   const [smsTestPhone, setSmsTestPhoneState] = useState('');
   const [smsTestInput, setSmsTestInput] = useState('');
+  const [closedDates, setClosedDates] = useState<string[]>([]);
+  const [openDates, setOpenDates] = useState<string[]>([]);
+  const [specialDateInput, setSpecialDateInput] = useState('');
 
   const downloadQR = async () => {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + '/checkin')}`;
@@ -83,7 +86,7 @@ export default function Students() {
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
-    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms(), getSmsTestPhone()]).then(([s, wl, sch, loc, bypassUntil, autoSms, testPhone]) => {
+    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms(), getSmsTestPhone(), getSpecialDates()]).then(([s, wl, sch, loc, bypassUntil, autoSms, testPhone, special]) => {
       setStudents(s);
       setWordLists(wl);
       setSchedules(sch);
@@ -92,6 +95,8 @@ export default function Students() {
       setAutoAbsentSmsState(autoSms);
       setSmsTestPhoneState(testPhone);
       setSmsTestInput(testPhone);
+      setClosedDates(special.closed);
+      setOpenDates(special.open);
       const edits: Record<string, string> = {};
       sch.forEach(sc => { edits[sc.gradeKey] = sc.startTime; });
       setScheduleEdits(edits);
@@ -627,6 +632,59 @@ export default function Students() {
               </div>
             </div>
           ))}
+
+          {/* 휴원일 / 보강일 설정 */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+            <p className="text-sm font-semibold text-slate-700">휴원일 / 보강일 설정</p>
+            <input type="date" value={specialDateInput} onChange={e => setSpecialDateInput(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            <div className="flex gap-2">
+              <button onClick={async () => {
+                if (!specialDateInput || closedDates.includes(specialDateInput)) return;
+                const next = [...closedDates, specialDateInput].sort();
+                await setSpecialDates(next, openDates);
+                setClosedDates(next); setSpecialDateInput('');
+              }} className="flex-1 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600">휴원일 추가</button>
+              <button onClick={async () => {
+                if (!specialDateInput || openDates.includes(specialDateInput)) return;
+                const next = [...openDates, specialDateInput].sort();
+                await setSpecialDates(closedDates, next);
+                setOpenDates(next); setSpecialDateInput('');
+              }} className="flex-1 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600">보강일 추가</button>
+            </div>
+            {closedDates.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-red-500 mb-1">휴원일</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {closedDates.map(d => (
+                    <span key={d} className="flex items-center gap-1 bg-red-50 border border-red-200 text-red-600 text-xs px-2 py-1 rounded-full">
+                      {d}
+                      <button onClick={async () => {
+                        const next = closedDates.filter(x => x !== d);
+                        await setSpecialDates(next, openDates); setClosedDates(next);
+                      }} className="text-red-400 hover:text-red-600 font-bold">×</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {openDates.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-blue-500 mb-1">보강일 (주말 수업)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {openDates.map(d => (
+                    <span key={d} className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-600 text-xs px-2 py-1 rounded-full">
+                      {d}
+                      <button onClick={async () => {
+                        const next = openDates.filter(x => x !== d);
+                        await setSpecialDates(closedDates, next); setOpenDates(next);
+                      }} className="text-blue-400 hover:text-blue-600 font-bold">×</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* 학원 위치 설정 */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">

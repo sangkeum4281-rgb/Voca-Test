@@ -19,6 +19,7 @@ const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
 type TeacherTab = 'daily' | 'weekly' | 'monthly';
 
 function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
+function todayKST() { return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10); }
 
 const STUDENT_NAME_KEY = 'vocab-student-name';
 
@@ -30,7 +31,7 @@ export default function Attendance() {
   const [teacherTab, setTeacherTab] = useState<TeacherTab>('daily');
 
   // 일별
-  const [date, setDate] = useState(toDateStr(new Date()));
+  const [date, setDate] = useState(todayKST());
   const [records, setRecords] = useState<Record<string, AttendanceRecord['status'] | null>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
@@ -368,7 +369,7 @@ export default function Attendance() {
               <input type="date" value={date} onChange={e => setDate(e.target.value)}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
               <button onClick={() => shiftDate(1)} className="p-2 rounded-lg hover:bg-slate-100"><ChevronRight size={16} /></button>
-              <button onClick={() => setDate(toDateStr(new Date()))} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400">
+              <button onClick={() => setDate(todayKST())} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400">
                 <RotateCcw size={14} />
               </button>
             </div>
@@ -484,7 +485,7 @@ export default function Attendance() {
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="sticky left-0 bg-slate-50 text-left px-4 py-3 font-semibold text-slate-600 border-r border-slate-200 min-w-[90px]">이름</th>
                       {weekDates.map((d, i) => {
-                        const isToday = toDateStr(d) === toDateStr(new Date());
+                        const isToday = toDateStr(d) === todayKST();
                         return (
                           <th key={i} className={`text-center px-3 py-3 font-semibold text-xs ${
                             d.getDay() === 0 ? 'text-red-400' : d.getDay() === 6 ? 'text-blue-400' : isToday ? 'text-indigo-600' : 'text-slate-500'
