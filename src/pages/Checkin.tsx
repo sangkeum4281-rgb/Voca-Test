@@ -42,9 +42,11 @@ export default function Checkin() {
           // 학원 위치 미설정 → 일단 허용 (선생님이 아직 안 설정한 경우)
           setGeoState('no_school_set');
         } else {
+          const bypass = localStorage.getItem('gps-bypass');
+          const bypassed = bypass && Date.now() < Number(bypass);
           const dist = calcDistance(latitude, longitude, school.lat, school.lng);
           setDistance(Math.round(dist));
-          setGeoState(dist <= RADIUS_M ? 'ok' : 'out_of_range');
+          setGeoState(bypassed || dist <= RADIUS_M ? 'ok' : 'out_of_range');
         }
         // 학생 데이터 로드
         const [stu, att, sch] = await Promise.all([

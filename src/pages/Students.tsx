@@ -55,6 +55,10 @@ export default function Students() {
   const [scheduleEdits, setScheduleEdits] = useState<Record<string, string>>({});
   const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
   const [savingPos, setSavingPos] = useState(false);
+  const [gpsBypass, setGpsBypass] = useState(() => {
+    const v = localStorage.getItem('gps-bypass');
+    return !!v && Date.now() < Number(v);
+  });
 
   const downloadQR = async () => {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + '/checkin')}`;
@@ -267,6 +271,18 @@ export default function Students() {
                 }}
                   className="text-xs text-slate-400 hover:text-red-500 transition-colors">
                   초기화
+                </button>
+                <button onClick={() => {
+                  if (gpsBypass) {
+                    localStorage.removeItem('gps-bypass');
+                    setGpsBypass(false);
+                  } else {
+                    localStorage.setItem('gps-bypass', String(Date.now() + 2 * 60 * 60 * 1000));
+                    setGpsBypass(true);
+                  }
+                }}
+                  className={`text-xs px-2 py-1 rounded-md transition-colors ${gpsBypass ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-orange-500'}`}>
+                  {gpsBypass ? 'GPS 우회 ON' : 'GPS 우회'}
                 </button>
               </div>
             </div>
