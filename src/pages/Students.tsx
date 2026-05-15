@@ -6,6 +6,7 @@ import {
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
   fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
+  getSmsTestPhone, setSmsTestPhone,
   type Student, type AttendanceRecord, type ClassSchedule,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -58,6 +59,8 @@ export default function Students() {
   const [savingPos, setSavingPos] = useState(false);
   const [gpsBypass, setGpsBypass] = useState(false);
   const [autoAbsentSms, setAutoAbsentSmsState] = useState(false);
+  const [smsTestPhone, setSmsTestPhoneState] = useState('');
+  const [smsTestInput, setSmsTestInput] = useState('');
 
   const downloadQR = async () => {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + '/checkin')}`;
@@ -80,13 +83,15 @@ export default function Students() {
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
-    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms()]).then(([s, wl, sch, loc, bypassUntil, autoSms]) => {
+    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms(), getSmsTestPhone()]).then(([s, wl, sch, loc, bypassUntil, autoSms, testPhone]) => {
       setStudents(s);
       setWordLists(wl);
       setSchedules(sch);
       if (loc) setSchoolPos(loc);
       if (bypassUntil !== null && Date.now() < bypassUntil) setGpsBypass(true);
       setAutoAbsentSmsState(autoSms);
+      setSmsTestPhoneState(testPhone);
+      setSmsTestInput(testPhone);
       const edits: Record<string, string> = {};
       sch.forEach(sc => { edits[sc.gradeKey] = sc.startTime; });
       setScheduleEdits(edits);
@@ -297,6 +302,38 @@ export default function Students() {
               </div>
             </div>
           </div>
+
+          {/* SMS 테스트 모드 */}
+          <div className={`rounded-xl border p-3 ${smsTestPhone ? 'bg-orange-50 border-orange-300' : 'bg-slate-50 border-slate-200'}`}>
+            <p className="text-xs font-semibold text-slate-600 mb-2">
+              📱 SMS 테스트 모드 {smsTestPhone && <span className="text-orange-600">— 모든 문자가 {smsTestPhone}로만 발송됩니다</span>}
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="tel"
+                value={smsTestInput}
+                onChange={e => setSmsTestInput(e.target.value)}
+                placeholder="테스트 받을 번호 (예: 01012345678)"
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <button onClick={async () => {
+                await setSmsTestPhone(smsTestInput);
+                setSmsTestPhoneState(smsTestInput.replace(/[^0-9]/g, ''));
+              }} className="px-3 py-1.5 bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600">
+                설정
+              </button>
+              {smsTestPhone && (
+                <button onClick={async () => {
+                  await setSmsTestPhone('');
+                  setSmsTestPhoneState('');
+                  setSmsTestInput('');
+                }} className="px-3 py-1.5 bg-slate-400 text-white text-xs rounded-lg hover:bg-slate-500">
+                  해제
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="flex gap-2 flex-wrap">
             <input
               className="flex-1 min-w-[120px] border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"

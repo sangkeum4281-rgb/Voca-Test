@@ -302,6 +302,8 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
     }
 
     const from = senderRaw.replace(/[^0-9]/g, '');
+    const testPhone = await getSmsTestPhone();
+    const to = testPhone || student.parent_phone.replace(/[^0-9]/g, '');
 
     const dateStr = new Date(date + 'T00:00:00+09:00')
       .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
@@ -323,7 +325,7 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
       },
       body: JSON.stringify({
         message: {
-          to: student.parent_phone.replace(/[^0-9]/g, ''),
+          to,
           from,
           text,
         },
@@ -359,8 +361,10 @@ export async function sendBulkSms(text: string): Promise<{ sent: number; failed:
   const apiSecret = import.meta.env.VITE_SOLAPI_API_SECRET as string;
   const from      = (import.meta.env.VITE_SENDER_PHONE as string).replace(/[^0-9]/g, '');
 
+  const testPhone = await getSmsTestPhone();
   const { data } = await supabase.from('students').select('parent_phone').not('parent_phone', 'is', null).neq('parent_phone', '');
-  const phones = [...new Set((data ?? []).map((r: { parent_phone: string }) => r.parent_phone.replace(/[^0-9]/g, '')).filter(Boolean))];
+  const allPhones = [...new Set((data ?? []).map((r: { parent_phone: string }) => r.parent_phone.replace(/[^0-9]/g, '')).filter(Boolean))];
+  const phones = testPhone ? [testPhone] : allPhones;
 
   let sent = 0, failed = 0;
   for (const to of phones) {
@@ -593,6 +597,18 @@ export async function setSchoolLocation(lat: number, lng: number): Promise<void>
     { onConflict: 'key' }
   );
   if (error) throw error;
+}
+
+export async function getSmsTestPhone(): Promise<string> {
+  const { data } = await supabase.from('school_settings').select('value').eq('key', 'sms_test_phone').single();
+  return data?.value ?? '';
+}
+
+export async function setSmsTestPhone(phone: string): Promise<void> {
+  await supabase.from('school_settings').upsert(
+    { key: 'sms_test_phone', value: phone.replace(/[^0-9]/g, '') },
+    { onConflict: 'key' }
+  );
 }
 
 export async function getAutoAbsentSms(): Promise<boolean> {
