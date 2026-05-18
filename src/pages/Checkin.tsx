@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAttendanceSms,
+  fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAligoAttendanceSms,
   fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil,
   type Student, type ClassSchedule,
 } from '../lib/db';
@@ -83,7 +83,7 @@ export default function Checkin() {
       localStorage.setItem(deviceKey, student.name);
       setCheckedIn(prev => new Set([...prev, student.name]));
       setSuccess({ name: student.name, isLate });
-      sendAttendanceSms(student.name, status, today, minutesLate || undefined);
+      sendAligoAttendanceSms(student.name, status, today, minutesLate || undefined);
       setTimeout(() => setSuccess(null), 4000);
     } finally {
       setProcessing(null);

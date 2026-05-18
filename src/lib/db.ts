@@ -338,6 +338,63 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
   }
 }
 
+// ── Aligo SMS ─────────────────────────────────────────────
+
+async function aligoPost(to: string, text: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const key    = import.meta.env.VITE_ALIGO_KEY as string;
+    const userId = import.meta.env.VITE_ALIGO_USER_ID as string;
+    const from   = (import.meta.env.VITE_SENDER_PHONE as string).replace(/[^0-9]/g, '');
+    const params = new URLSearchParams({ key, user_id: userId, sender: from, receiver: to, msg: text });
+    const res = await fetch('https://apis.aligo.in/send/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    const result = await res.json();
+    if (result.result_code !== '1' && result.result_code !== 1) return { success: false, error: result.message };
+    return { success: true };
+  } catch (e) { return { success: false, error: String(e) }; }
+}
+
+export async function sendAligoAttendanceSms(
+  studentName: string,
+  status: 'late' | 'absent' | 'present',
+  date: string,
+  minutesLate?: number
+): Promise<{ success: boolean; error?: string }> {
+  const { data: student } = await supabase.from('students').select('parent_phone').eq('name', studentName).single();
+  const testPhone = await getSmsTestPhone();
+  const parentPhone = (student?.parent_phone ?? '').replace(/[^0-9]/g, '');
+  const to = testPhone || parentPhone;
+  if (!to) return { success: false, error: '학부모 전화번호가 등록되지 않았습니다' };
+
+  const dateStr = new Date(date + 'T00:00:00+09:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  const lateStr = (() => {
+    if (status !== 'late' || !minutesLate) return '지각';
+    if (minutesLate < 60) return `${minutesLate}분 지각`;
+    const h = Math.floor(minutesLate / 60), m = minutesLate % 60;
+    return m > 0 ? `${h}시간 ${m}분 지각` : `${h}시간 지각`;
+  })();
+  const text = status === 'present'
+    ? `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 학원에 도착했습니다.`
+    : `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${status === 'late' ? lateStr : '결석'}했습니다.`;
+  return aligoPost(to, text);
+}
+
+export async function sendAligoBulkSms(text: string): Promise<{ sent: number; failed: number }> {
+  const testPhone = await getSmsTestPhone();
+  const { data } = await supabase.from('students').select('parent_phone').not('parent_phone', 'is', null).neq('parent_phone', '');
+  const allPhones = [...new Set((data ?? []).map((r: { parent_phone: string }) => r.parent_phone.replace(/[^0-9]/g, '')).filter(Boolean))];
+  const phones = testPhone ? [testPhone] : allPhones;
+  let sent = 0, failed = 0;
+  for (const to of phones) {
+    const r = await aligoPost(to, text);
+    r.success ? sent++ : failed++;
+  }
+  return { sent, failed };
+}
+
 export async function sendTestSms(to: string, text: string): Promise<{ success: boolean; error?: string }> {
   try {
     const apiKey    = import.meta.env.VITE_SOLAPI_API_KEY as string;
@@ -775,7 +832,7 @@ export async function autoMarkAbsent(sendSms = false): Promise<void> {
       const key = `${student.name}-absent`;
       const stored = JSON.parse(localStorage.getItem(`sms-sent-${today}`) ?? '{}');
       if (!stored[key]) {
-        const result = await sendAttendanceSms(student.name, 'absent', today);
+        const result = await sendAligoAttendanceSms(student.name, 'absent', today);
         if (result.success) {
           stored[key] = true;
           localStorage.setItem(`sms-sent-${today}`, JSON.stringify(stored));

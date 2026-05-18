@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   fetchWordLists, fetchAnnouncements, fetchQna,
   fetchAttendanceByDate, fetchStudents,
-  getAutoAbsentSms, sendBulkSms, autoMarkAbsent,
+  getAutoAbsentSms, sendAligoBulkSms, autoMarkAbsent,
   type Announcement, type QnaItem, type AttendanceRecord, type Student,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -77,7 +77,7 @@ export default function Home() {
     if (isWeekend()) { alert('주말에는 문자를 발송할 수 없습니다.'); return; }
     if (!confirm(`전체 학부모에게 문자를 발송하시겠습니까?\n\n${noticeText}`)) return;
     setNoticeSending(true);
-    const { sent, failed } = await sendBulkSms(`[최강학원] ${noticeText}`);
+    const { sent, failed } = await sendAligoBulkSms(`[최강학원] ${noticeText}`);
     setNoticeSending(false);
     setNoticeText('');
     alert(`발송 완료: ${sent}명 성공${failed > 0 ? `, ${failed}명 실패` : ''}`);

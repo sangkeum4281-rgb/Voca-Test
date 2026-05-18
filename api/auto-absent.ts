@@ -106,16 +106,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const from = (process.env.VITE_SENDER_PHONE ?? '').replace(/[^0-9]/g, '');
 
       try {
-        const auth = await solapiSign(
-          process.env.VITE_SOLAPI_API_KEY!,
-          process.env.VITE_SOLAPI_API_SECRET!
-        );
-        const r = await fetch('https://api.solapi.com/messages/v4/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': auth },
-          body: JSON.stringify({ message: { to, from, text } }),
+        const params = new URLSearchParams({
+          key: process.env.VITE_ALIGO_KEY!,
+          user_id: process.env.VITE_ALIGO_USER_ID!,
+          sender: from, receiver: to, msg: text,
         });
-        if (r.ok) smsSent.push(student.name);
+        const r = await fetch('https://apis.aligo.in/send/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+        });
+        const result = await r.json();
+        if (result.result_code === '1' || result.result_code === 1) smsSent.push(student.name);
+        else console.error('SMS error', student.name, result.message);
       } catch (e) {
         console.error('SMS error', student.name, e);
       }
