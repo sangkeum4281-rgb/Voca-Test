@@ -342,18 +342,12 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
 
 async function aligoPost(to: string, text: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const key    = import.meta.env.VITE_ALIGO_KEY as string;
-    const userId = import.meta.env.VITE_ALIGO_USER_ID as string;
-    const from   = (import.meta.env.VITE_SENDER_PHONE as string).replace(/[^0-9]/g, '');
-    const params = new URLSearchParams({ key, user_id: userId, sender: from, receiver: to, msg: text });
-    const res = await fetch('https://apis.aligo.in/send/', {
+    const res = await fetch('/api/send-sms', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, text }),
     });
-    const result = await res.json();
-    if (result.result_code !== '1' && result.result_code !== 1) return { success: false, error: result.message };
-    return { success: true };
+    return await res.json();
   } catch (e) { return { success: false, error: String(e) }; }
 }
 
