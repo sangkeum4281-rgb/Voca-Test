@@ -19,8 +19,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: params.toString(),
     });
     const result = await r.json();
+    console.log('Aligo response:', JSON.stringify(result));
     const success = result.result_code === '1' || result.result_code === 1;
-    return res.json({ success, error: success ? undefined : result.message });
+    return res.json({ success, error: success ? undefined : result.message, aligoResult: result });
   } catch (e) {
     return res.status(500).json({ success: false, error: String(e) });
   }
