@@ -137,12 +137,16 @@ export default function Attendance() {
 
   const mark = async (studentName: string, status: AttendanceRecord['status']) => {
     setSaving(studentName);
-    if (records[studentName] === status) {
-      await deleteAttendance(studentName, date);
-      setRecords(p => ({ ...p, [studentName]: null }));
-    } else {
-      await upsertAttendance({ studentName, date, status, note: '' });
-      setRecords(p => ({ ...p, [studentName]: status }));
+    try {
+      if (records[studentName] === status) {
+        await deleteAttendance(studentName, date);
+        setRecords(p => ({ ...p, [studentName]: null }));
+      } else {
+        await upsertAttendance({ studentName, date, status, note: '' });
+        setRecords(p => ({ ...p, [studentName]: status }));
+      }
+    } catch (e) {
+      alert(`저장 실패: ${String(e)}`);
     }
     setSaving(null);
   };
