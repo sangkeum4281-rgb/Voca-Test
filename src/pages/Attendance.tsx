@@ -63,6 +63,13 @@ export default function Attendance() {
         if (classes.length > 0) setSelectedClass(classes[0]);
         setLoading(false);
       });
+      // 자동 결석 처리는 마운트 시 1회만
+      const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const today = kst.toISOString().slice(0, 10);
+      const todayDate = new Date().toISOString().slice(0, 10);
+      if (todayDate === today) {
+        getAutoAbsentSms().then(enabled => autoMarkAbsent(enabled));
+      }
     } else {
       setLoading(false);
     }
@@ -84,12 +91,6 @@ export default function Attendance() {
   }, [year, month, teacherTab]);
 
   const loadDaily = async () => {
-    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    const today = kstNow.toISOString().slice(0, 10);
-    if (isTeacher && date === today) {
-      const smsEnabled = await getAutoAbsentSms();
-      await autoMarkAbsent(smsEnabled);
-    }
     const data = await fetchAttendanceByDate(date);
     const map: Record<string, AttendanceRecord['status'] | null> = {};
     const noteMap: Record<string, string> = {};
