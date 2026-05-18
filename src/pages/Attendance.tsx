@@ -141,11 +141,10 @@ export default function Attendance() {
     try {
       if (records[studentName] === status) {
         await deleteAttendance(studentName, date);
-        setRecords(p => ({ ...p, [studentName]: null }));
       } else {
         await upsertAttendance({ studentName, date, status, note: '' });
-        setRecords(p => ({ ...p, [studentName]: status }));
       }
+      await loadDaily();
     } catch (e) {
       alert(`저장 실패: ${String(e)}`);
     }
