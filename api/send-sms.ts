@@ -10,6 +10,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = process.env.VITE_ALIGO_USER_ID!;
   const from   = (process.env.VITE_SENDER_PHONE ?? '').replace(/[^0-9]/g, '');
 
+  const ipRes = await fetch('https://api.ipify.org?format=json');
+  const { ip } = await ipRes.json() as { ip: string };
+  console.log('Outbound IP:', ip);
+
   const params = new URLSearchParams({ key, user_id: userId, sender: from, receiver: to, msg: text });
 
   try {
