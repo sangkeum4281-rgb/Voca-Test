@@ -2,6 +2,35 @@ import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'crypto';
 
+function ncpSign(timestamp: string): string {
+  const serviceId = process.env.NCP_SERVICE_ID!;
+  const accessKey = process.env.NCP_ACCESS_KEY!;
+  const secretKey = process.env.NCP_SECRET_KEY!;
+  const url = `/sms/v2/services/${serviceId}/messages`;
+  return crypto.createHmac('sha256', secretKey).update(`POST ${url}\n${timestamp}\n${accessKey}`).digest('base64');
+}
+
+async function sendNcpSms(to: string, text: string): Promise<boolean> {
+  const serviceId = process.env.NCP_SERVICE_ID!;
+  const accessKey = process.env.NCP_ACCESS_KEY!;
+  const sender    = (process.env.NCP_SENDER_PHONE ?? '').replace(/[^0-9]/g, '');
+  const timestamp = Date.now().toString();
+  try {
+    const r = await fetch(`https://sens.apigw.ntruss.com/sms/v2/services/${serviceId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'x-ncp-apigw-timestamp': timestamp,
+        'x-ncp-iam-access-key': accessKey,
+        'x-ncp-apigw-signature-v2': ncpSign(timestamp),
+      },
+      body: JSON.stringify({ type: 'SMS', from: sender, messages: [{ to, content: text }] }),
+    });
+    const result = await r.json() as { statusCode?: string };
+    return result.statusCode === '202';
+  } catch { return false; }
+}
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -19,13 +48,6 @@ const GRADE_DEFAULTS: Record<string, string> = {
 function isWeekendKST(): boolean {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCDay();
   return d === 0 || d === 6;
-}
-
-async function solapiSign(apiKey: string, apiSecret: string): Promise<string> {
-  const date = new Date().toISOString();
-  const salt = Math.random().toString(36).substring(2);
-  const hmac = crypto.createHmac('sha256', apiSecret).update(date + salt).digest('hex');
-  return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${hmac}`;
 }
 
 function getStartTime(className: string, scheduleMap: Record<string, string>): string {
@@ -103,25 +125,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const dateStr = new Date(today + 'T00:00:00+09:00')
         .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
       const text = `[최강학원] ${student.name} 학생이 오늘(${dateStr}) 수업에 결석했습니다.`;
-      const from = (process.env.VITE_SENDER_PHONE ?? '').replace(/[^0-9]/g, '');
 
-      try {
-        const params = new URLSearchParams({
-          key: process.env.VITE_ALIGO_KEY!,
-          user_id: process.env.VITE_ALIGO_USER_ID!,
-          sender: from, receiver: to, msg: text,
-        });
-        const r = await fetch('https://apis.aligo.in/send/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: params.toString(),
-        });
-        const result = await r.json();
-        if (result.result_code === '1' || result.result_code === 1) smsSent.push(student.name);
-        else console.error('SMS error', student.name, result.message);
-      } catch (e) {
-        console.error('SMS error', student.name, e);
-      }
+      const ok = await sendNcpSms(to, text);
+      if (ok) smsSent.push(student.name);
+      else console.error('SMS 발송 실패:', student.name);
     }
   }
 
