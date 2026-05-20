@@ -7,6 +7,7 @@ import {
   fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
   getSmsTestPhone, setSmsTestPhone, getSpecialDates, setSpecialDates,
+  getCheckinTimeBypassed, setCheckinTimeBypassUntil,
   type Student, type AttendanceRecord, type ClassSchedule,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -58,6 +59,7 @@ export default function Students() {
   const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
   const [savingPos, setSavingPos] = useState(false);
   const [gpsBypass, setGpsBypass] = useState(false);
+  const [timeBypass, setTimeBypass] = useState(false);
   const [autoAbsentSms, setAutoAbsentSmsState] = useState(false);
   const [smsTestPhone, setSmsTestPhoneState] = useState('');
   const [smsTestInput, setSmsTestInput] = useState('');
@@ -87,12 +89,13 @@ export default function Students() {
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
-    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms(), getSmsTestPhone(), getSpecialDates()]).then(([s, wl, sch, loc, bypassUntil, autoSms, testPhone, special]) => {
+    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms(), getSmsTestPhone(), getSpecialDates(), getCheckinTimeBypassed()]).then(([s, wl, sch, loc, bypassUntil, autoSms, testPhone, special, timeBp]) => {
       setStudents(s);
       setWordLists(wl);
       setSchedules(sch);
       if (loc) setSchoolPos(loc);
       if (bypassUntil !== null && Date.now() < bypassUntil) setGpsBypass(true);
+      setTimeBypass(timeBp);
       setAutoAbsentSmsState(autoSms);
       setSmsTestPhoneState(testPhone);
       setSmsTestInput(testPhone);
@@ -295,6 +298,18 @@ export default function Students() {
                 }}
                   className={`text-xs px-2 py-1 rounded-md transition-colors ${gpsBypass ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-orange-500'}`}>
                   {gpsBypass ? 'GPS 우회 ON' : 'GPS 우회'}
+                </button>
+                <button onClick={async () => {
+                  if (timeBypass) {
+                    await setCheckinTimeBypassUntil(null);
+                    setTimeBypass(false);
+                  } else {
+                    await setCheckinTimeBypassUntil(Date.now() + 2 * 60 * 60 * 1000);
+                    setTimeBypass(true);
+                  }
+                }}
+                  className={`text-xs px-2 py-1 rounded-md transition-colors ${timeBypass ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-blue-500'}`}>
+                  {timeBypass ? '시간제한 해제 ON' : '시간제한 해제'}
                 </button>
                 <button onClick={async () => {
                   const next = !autoAbsentSms;

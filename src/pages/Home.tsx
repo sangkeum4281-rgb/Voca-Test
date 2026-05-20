@@ -84,7 +84,7 @@ export default function Home() {
   };
 
   // 반별 결석·지각자 그룹
-  const classes = [...new Set(students.map(s => s.className).filter(Boolean))].sort();
+  const classes = [...new Set(students.filter(s => !/고등|고교/.test(s.className ?? '')).map(s => s.className).filter(Boolean))].sort();
   const absentByClass = classes.map(cls => {
     const classStudents = students.filter(s => s.className === cls);
     const absentNames = classStudents

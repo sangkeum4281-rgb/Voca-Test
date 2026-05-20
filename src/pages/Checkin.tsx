@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAligoAttendanceSms,
-  fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil,
+  fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil, getCheckinTimeBypassed,
   type Student, type ClassSchedule,
 } from '../lib/db';
 import { CheckCircle, Loader, MapPin, AlertCircle } from 'lucide-react';
@@ -21,6 +21,7 @@ export default function Checkin() {
   const [distance, setDistance] = useState<number | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [error, setError] = useState('');
+  const [timeBypassed, setTimeBypassed] = useState(false);
 
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const deviceKey = `checkin-${today}`;
@@ -45,11 +46,13 @@ export default function Checkin() {
           setDistance(Math.round(dist));
           setGeoState(bypassed || dist <= RADIUS_M ? 'ok' : 'out_of_range');
         }
-        const [stu, att, sch] = await Promise.all([
+        const [stu, att, sch, timeBp] = await Promise.all([
           fetchStudents(),
           fetchAttendanceByDate(today),
           fetchClassSchedules().catch(() => []),
+          getCheckinTimeBypassed(),
         ]);
+        setTimeBypassed(timeBp);
         setStudents(stu);
         setSchedules(sch);
         const alreadyIn = new Set(
@@ -141,7 +144,7 @@ export default function Checkin() {
   }
 
   const kstHour = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
-  if (kstHour < 16) {
+  if (kstHour < 16 && !timeBypassed) {
     return (
       <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
         <AlertCircle size={64} className="text-yellow-300" />
