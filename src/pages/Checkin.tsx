@@ -140,6 +140,17 @@ export default function Checkin() {
     );
   }
 
+  const kstHour = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
+  if (kstHour < 16) {
+    return (
+      <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
+        <AlertCircle size={64} className="text-yellow-300" />
+        <h1 className="text-2xl font-bold">아직 체크인 시간이 아닙니다</h1>
+        <p className="text-indigo-200">체크인은 오후 4시부터 가능합니다</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm">
