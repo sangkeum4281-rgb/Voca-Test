@@ -140,6 +140,18 @@ export default function Checkin() {
           </div>
           <p className="text-slate-400 text-xs">설정 변경 후 Safari에서 페이지를 새로 고침해주세요</p>
         </div>
+        <div className="bg-slate-700 rounded-xl p-4 text-left text-sm text-slate-200 space-y-3 max-w-xs w-full">
+          <p className="font-semibold text-white">🤖 안드로이드 설정 방법</p>
+          <div>
+            <p className="text-slate-400 text-xs mb-1">Chrome 사용 시</p>
+            <p>주소창 왼쪽 자물쇠 아이콘 → 권한 → 위치 → <span className="text-green-300">허용</span></p>
+          </div>
+          <div>
+            <p className="text-slate-400 text-xs mb-1">그래도 안 될 때</p>
+            <p>설정 → 앱 → Chrome → 권한 → 위치 → <span className="text-green-300">앱 사용 중에만 허용</span></p>
+          </div>
+          <p className="text-slate-400 text-xs">설정 변경 후 페이지를 새로 고침해주세요</p>
+        </div>
         <button onClick={() => window.location.reload()}
           className="px-6 py-2 bg-indigo-500 hover:bg-indigo-400 rounded-xl text-sm font-semibold transition-colors">
           새로 고침
