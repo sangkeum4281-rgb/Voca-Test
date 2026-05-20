@@ -128,7 +128,22 @@ export default function Checkin() {
       <div className="min-h-screen bg-slate-800 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
         <AlertCircle size={64} className="text-red-400" />
         <h1 className="text-2xl font-bold">위치 권한을 허용해주세요</h1>
-        <p className="text-slate-300 text-sm">출석 체크는 학원 위치 확인이 필요합니다<br />브라우저 설정에서 위치 권한을 허용한 후 다시 시도해주세요</p>
+        <div className="bg-slate-700 rounded-xl p-4 text-left text-sm text-slate-200 space-y-3 max-w-xs w-full">
+          <p className="font-semibold text-white">📱 아이폰 설정 방법</p>
+          <div>
+            <p className="text-slate-400 text-xs mb-1">방법 1</p>
+            <p>설정 → 개인 정보 보호 및 보안 → 위치 서비스 → Safari 웹사이트 → <span className="text-green-300">앱을 사용하는 동안</span></p>
+          </div>
+          <div>
+            <p className="text-slate-400 text-xs mb-1">방법 2</p>
+            <p>설정 → Safari → 위치 → <span className="text-green-300">허용</span></p>
+          </div>
+          <p className="text-slate-400 text-xs">설정 변경 후 Safari에서 페이지를 새로 고침해주세요</p>
+        </div>
+        <button onClick={() => window.location.reload()}
+          className="px-6 py-2 bg-indigo-500 hover:bg-indigo-400 rounded-xl text-sm font-semibold transition-colors">
+          새로 고침
+        </button>
       </div>
     );
   }
