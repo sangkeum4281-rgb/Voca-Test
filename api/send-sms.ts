@@ -33,6 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         type: 'SMS',
         from: sender,
+        content: text,
         messages: [{ to: to.replace(/[^0-9]/g, ''), content: text }],
       }),
     });

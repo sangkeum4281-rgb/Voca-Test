@@ -24,7 +24,7 @@ async function sendNcpSms(to: string, text: string): Promise<boolean> {
         'x-ncp-iam-access-key': accessKey,
         'x-ncp-apigw-signature-v2': ncpSign(timestamp),
       },
-      body: JSON.stringify({ type: 'SMS', from: sender, messages: [{ to, content: text }] }),
+      body: JSON.stringify({ type: 'SMS', from: sender, content: text, messages: [{ to, content: text }] }),
     });
     const result = await r.json() as { statusCode?: string };
     return result.statusCode === '202';
