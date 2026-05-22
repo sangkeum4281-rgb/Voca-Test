@@ -143,8 +143,19 @@ export default function Attendance() {
       if (records[studentName] === status) {
         await deleteAttendance(studentName, date);
       } else {
-        await upsertAttendance({ studentName, date, status, note: '' });
-        sendAligoAttendanceSms(studentName, status, date);
+        let note = '';
+        let minutesLate: number | undefined;
+        if (status === 'late') {
+          const input = window.prompt(`${studentName} 지각 - 몇 분 지각했나요?`);
+          if (input === null) { setSaving(null); return; }
+          const parsed = parseInt(input);
+          if (!isNaN(parsed) && parsed > 0) {
+            minutesLate = parsed;
+            note = String(parsed);
+          }
+        }
+        await upsertAttendance({ studentName, date, status, note });
+        sendAligoAttendanceSms(studentName, status, date, minutesLate);
       }
       await loadDaily();
     } catch (e) {
