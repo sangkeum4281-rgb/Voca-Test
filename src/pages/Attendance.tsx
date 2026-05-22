@@ -3,6 +3,7 @@ import {
   fetchStudents, fetchAttendanceByDate,
   fetchAttendanceByMonth, fetchAttendanceByWeek,
   upsertAttendance, deleteAttendance, autoMarkAbsent, getAutoAbsentSms,
+  sendAligoAttendanceSms,
   type Student, type AttendanceRecord,
 } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
@@ -143,6 +144,7 @@ export default function Attendance() {
         await deleteAttendance(studentName, date);
       } else {
         await upsertAttendance({ studentName, date, status, note: '' });
+        sendAligoAttendanceSms(studentName, status, date);
       }
       await loadDaily();
     } catch (e) {
