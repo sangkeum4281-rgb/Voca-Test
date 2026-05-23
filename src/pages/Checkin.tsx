@@ -28,6 +28,13 @@ export default function Checkin() {
   const alreadyDoneByDevice = localStorage.getItem(deviceKey);
 
   useEffect(() => {
+    if (alreadyDoneByDevice) {
+      const t = setTimeout(() => { window.location.href = '/'; }, 2000);
+      return () => clearTimeout(t);
+    }
+  }, [alreadyDoneByDevice]);
+
+  useEffect(() => {
     if (!navigator.geolocation) {
       setGeoState('denied');
       setLoading(false);
@@ -97,7 +104,7 @@ export default function Checkin() {
       setSuccess({ name: student.name, isLate });
       setNameInput('');
       sendAligoAttendanceSms(student.name, status, today, minutesLate || undefined);
-      setTimeout(() => setSuccess(null), 4000);
+      setTimeout(() => { window.location.href = '/'; }, 2000);
     } finally {
       setProcessing(false);
     }
@@ -116,7 +123,7 @@ export default function Checkin() {
     return (
       <div className="min-h-screen bg-green-600 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
         <CheckCircle size={72} />
-        <h1 className="text-3xl font-bold">오늘 이미 체크인 완료!</h1>
+        <h1 className="text-3xl font-bold">체크인 완료!</h1>
         <p className="text-xl text-green-100">{alreadyDoneByDevice} 학생</p>
         <p className="text-green-200 text-xs mt-4">이 기기에서는 하루에 한 번만 체크인할 수 있어요</p>
       </div>
