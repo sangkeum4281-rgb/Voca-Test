@@ -1,0 +1,16 @@
+name: Auto Absent SMS
+
+on:
+  schedule:
+    - cron: '40 7 * * 1-5'  # 16:40 KST (월~금)
+    - cron: '40 9 * * 1-5'  # 18:40 KST (월~금)
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call auto-absent API
+        run: |
+          curl -s -X GET \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.VERCEL_URL }}/api/auto-absent"
