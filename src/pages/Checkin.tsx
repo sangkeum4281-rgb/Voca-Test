@@ -91,7 +91,7 @@ export default function Checkin() {
       return;
     }
     if (checkedIn.has(student.name)) {
-      setError(`${student.name} 학생은 이미 체크인했습니다.`);
+      setError(`${student.name} 학생은 이미 출석했습니다.`);
       return;
     }
     if ((geoState === 'out_of_range' || geoState === 'denied') && !student.gpsExempt) {
@@ -129,11 +129,19 @@ export default function Checkin() {
 
   if (alreadyDoneByDevice) {
     return (
-      <div className="min-h-screen bg-green-600 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
-        <CheckCircle size={72} />
-        <h1 className="text-3xl font-bold">체크인 완료!</h1>
-        <p className="text-xl text-green-100">{alreadyDoneByDevice} 학생</p>
-        <p className="text-green-200 text-xs mt-4">이 기기에서는 하루에 한 번만 체크인할 수 있어요</p>
+      <div className="min-h-screen flex flex-col items-center justify-center p-8 text-white text-center"
+        style={{ background: 'linear-gradient(135deg, #16a34a 0%, #15803d 50%, #166534 100%)' }}>
+        <div className="mb-6 rounded-full bg-white/20 p-6 shadow-2xl ring-4 ring-white/30">
+          <CheckCircle size={80} className="text-white drop-shadow-lg" />
+        </div>
+        <h1 className="text-4xl font-extrabold tracking-tight mb-2">출석 완료</h1>
+        <p className="text-2xl font-semibold text-green-100 mb-1">{alreadyDoneByDevice}</p>
+        <p className="text-green-200 text-sm">
+          {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
+        </p>
+        <div className="mt-8 px-5 py-2.5 rounded-full bg-white/10 border border-white/20 text-green-100 text-xs">
+          오늘 출석이 확인되었습니다
+        </div>
       </div>
     );
   }
@@ -145,8 +153,8 @@ export default function Checkin() {
     return (
       <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
         <AlertCircle size={64} className="text-yellow-300" />
-        <h1 className="text-2xl font-bold">아직 체크인 시간이 아닙니다</h1>
-        <p className="text-indigo-200">체크인은 오후 4시부터 가능합니다</p>
+        <h1 className="text-2xl font-bold">아직 출석 시간이 아닙니다</h1>
+        <p className="text-indigo-200">출석은 오후 4시부터 가능합니다</p>
       </div>
     );
   }
@@ -174,7 +182,7 @@ export default function Checkin() {
             <CheckCircle size={28} className="flex-shrink-0" />
             <div>
               <p className="font-bold text-lg">
-                {success.name}님 {success.isLate ? '지각 처리되었습니다' : '체크인 완료!'}
+                {success.name}님 {success.isLate ? '지각 처리되었습니다' : '출석 완료!'}
               </p>
               <p className="text-sm opacity-90">
                 {success.isLate ? '수업 시작 후 도착했습니다' : '학부모님께 알림을 보냈습니다'}
@@ -203,7 +211,7 @@ export default function Checkin() {
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-lg py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             {processing ? <Loader size={20} className="animate-spin" /> : <CheckCircle size={20} />}
-            {processing ? '처리 중...' : '체크인'}
+            {processing ? '처리 중...' : '출석'}
           </button>
         </div>
       </div>

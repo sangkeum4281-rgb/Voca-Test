@@ -267,8 +267,8 @@ export default function Students() {
               className="w-24 h-24 rounded-lg border border-indigo-200"
             />
             <div>
-              <p className="font-semibold text-indigo-700 mb-1">학생 출석 체크인 QR</p>
-              <p className="text-xs text-slate-500">학원 50m 이내에서만 체크인 가능</p>
+              <p className="font-semibold text-indigo-700 mb-1">학생 출석 QR</p>
+              <p className="text-xs text-slate-500">학원 50m 이내에서만 출석 가능</p>
               <p className="text-xs text-slate-400 mt-0.5">인쇄하거나 화면에 띄워두세요</p>
               <div className="flex items-center gap-3 mt-2">
                 <a href="/checkin" target="_blank"
@@ -616,7 +616,7 @@ export default function Students() {
         <div className="space-y-4 max-w-sm">
           <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
             <p className="text-sm font-semibold text-indigo-700 mb-1">수업 시작 시간 설정</p>
-            <p className="text-xs text-slate-500">QR 체크인 시 시작 시간 이후 도착하면 자동 지각 처리됩니다</p>
+            <p className="text-xs text-slate-500">QR 출석 시 시작 시간 이후 도착하면 자동 지각 처리됩니다</p>
           </div>
           {(['중등부', '고등부'] as const).map(division => (
             <div key={division}>
@@ -718,7 +718,7 @@ export default function Students() {
           {/* 학원 위치 설정 */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <p className="text-sm font-semibold text-slate-700">학원 위치 설정</p>
-            <p className="text-xs text-slate-400">학원에서 이 버튼을 누르면 현재 위치가 학원으로 등록됩니다.<br />학생들은 반경 50m 이내에서만 체크인 가능합니다.</p>
+            <p className="text-xs text-slate-400">학원에서 이 버튼을 누르면 현재 위치가 학원으로 등록됩니다.<br />학생들은 반경 50m 이내에서만 출석 가능합니다.</p>
             {schoolPos && (
               <p className="text-xs text-green-600 font-medium">✓ 위치 등록됨 ({schoolPos.lat.toFixed(5)}, {schoolPos.lng.toFixed(5)})</p>
             )}
