@@ -88,12 +88,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
   const AUTO_DELAY_MIN = 10;
 
-  const [{ data: students, error: stuErr }, { data: att }, { data: schedules }] = await Promise.all([
+  const [{ data: students }, { data: att }, { data: schedules }] = await Promise.all([
     supabase.from('students').select('*'),
     supabase.from('attendance').select('student_name').eq('date', today),
     supabase.from('class_schedules').select('*'),
   ]);
-  if (stuErr) console.error('students 쿼리 에러:', stuErr);
 
   const scheduleMap: Record<string, string> = {};
   for (const s of schedules ?? []) scheduleMap[s.grade_key] = s.start_time;
@@ -133,14 +132,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const debug = (students ?? []).map(s => {
-    const className = s.class_name ?? '';
-    if (!className || /고등|고교/.test(className)) return { name: s.name, skip: '고등부/반없음' };
-    const startTime = openEntry?.time || getStartTime(className, scheduleMap);
-    const [h, m] = startTime.split(':').map(Number);
-    if (nowMin < h * 60 + m + AUTO_DELAY_MIN) return { name: s.name, skip: `시간미달(${startTime}, 현재${nowMin}분)` };
-    if (checkedIn.has(s.name)) return { name: s.name, skip: '이미출결' };
-    return { name: s.name, skip: null };
-  });
-  return res.json({ ok: true, marked, smsSent, today, nowMin, smsEnabled, studentCount: (students ?? []).length, stuErr, debug });
+  return res.json({ ok: true, marked, smsSent, today });
 }
