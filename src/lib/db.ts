@@ -261,7 +261,7 @@ export async function addStudent(name: string, className: string, parentPhone = 
     .select()
     .single();
   if (error) throw error;
-  return { id: data.id, name: data.name, className: data.class_name ?? '', parentPhone: data.parent_phone ?? '', createdAt: data.created_at };
+  return { id: data.id, name: data.name, className: data.class_name ?? '', parentPhone: data.parent_phone ?? '', createdAt: data.created_at, gpsExempt: false };
 }
 
 export async function updateStudentPhone(id: string, parentPhone: string): Promise<void> {

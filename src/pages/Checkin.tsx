@@ -4,7 +4,7 @@ import {
   fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil, getCheckinTimeBypassed,
   type Student, type ClassSchedule,
 } from '../lib/db';
-import { CheckCircle, Loader, MapPin, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader, AlertCircle } from 'lucide-react';
 
 const RADIUS_M = 100;
 
@@ -35,9 +35,24 @@ export default function Checkin() {
   }, [alreadyDoneByDevice]);
 
   useEffect(() => {
+    const loadData = async () => {
+      const [stu, att, sch, timeBp] = await Promise.all([
+        fetchStudents(),
+        fetchAttendanceByDate(today),
+        fetchClassSchedules().catch(() => []),
+        getCheckinTimeBypassed(),
+      ]);
+      setTimeBypassed(timeBp);
+      setStudents(stu);
+      setSchedules(sch);
+      setCheckedIn(new Set(
+        att.filter(a => a.status === 'present' || a.status === 'late').map(a => a.studentName)
+      ));
+    };
+
     if (!navigator.geolocation) {
       setGeoState('denied');
-      setLoading(false);
+      loadData().finally(() => setLoading(false));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -53,23 +68,12 @@ export default function Checkin() {
           setDistance(Math.round(dist));
           setGeoState(bypassed || dist <= RADIUS_M ? 'ok' : 'out_of_range');
         }
-        const [stu, att, sch, timeBp] = await Promise.all([
-          fetchStudents(),
-          fetchAttendanceByDate(today),
-          fetchClassSchedules().catch(() => []),
-          getCheckinTimeBypassed(),
-        ]);
-        setTimeBypassed(timeBp);
-        setStudents(stu);
-        setSchedules(sch);
-        const alreadyIn = new Set(
-          att.filter(a => a.status === 'present' || a.status === 'late').map(a => a.studentName)
-        );
-        setCheckedIn(alreadyIn);
+        await loadData();
         setLoading(false);
       },
-      () => {
+      async () => {
         setGeoState('denied');
+        await loadData();
         setLoading(false);
       },
       { timeout: 15000, maximumAge: 0, enableHighAccuracy: true }
@@ -90,8 +94,8 @@ export default function Checkin() {
       setError(`${student.name} 학생은 이미 체크인했습니다.`);
       return;
     }
-    if (geoState === 'out_of_range' && !student.gpsExempt) {
-      setError('학원 근처가 아닙니다. 위치를 확인해주세요.');
+    if ((geoState === 'out_of_range' || geoState === 'denied') && !student.gpsExempt) {
+      setError(geoState === 'denied' ? '위치 권한을 허용해주세요.' : '학원 근처가 아닙니다. 위치를 확인해주세요.');
       return;
     }
 
@@ -134,42 +138,6 @@ export default function Checkin() {
     );
   }
 
-  if (geoState === 'denied') {
-    return (
-      <div className="min-h-screen bg-slate-800 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
-        <AlertCircle size={64} className="text-red-400" />
-        <h1 className="text-2xl font-bold">위치 권한을 허용해주세요</h1>
-        <div className="bg-slate-700 rounded-xl p-4 text-left text-sm text-slate-200 space-y-3 max-w-xs w-full">
-          <p className="font-semibold text-white">📱 아이폰 설정 방법</p>
-          <div>
-            <p className="text-slate-400 text-xs mb-1">방법 1</p>
-            <p>설정 → 개인 정보 보호 및 보안 → 위치 서비스 → Safari 웹사이트 → <span className="text-green-300">앱을 사용하는 동안</span></p>
-          </div>
-          <div>
-            <p className="text-slate-400 text-xs mb-1">방법 2</p>
-            <p>설정 → Safari → 위치 → <span className="text-green-300">허용</span></p>
-          </div>
-          <p className="text-slate-400 text-xs">설정 변경 후 Safari에서 페이지를 새로 고침해주세요</p>
-        </div>
-        <div className="bg-slate-700 rounded-xl p-4 text-left text-sm text-slate-200 space-y-3 max-w-xs w-full">
-          <p className="font-semibold text-white">🤖 안드로이드 설정 방법</p>
-          <div>
-            <p className="text-slate-400 text-xs mb-1">Chrome 사용 시</p>
-            <p>주소창 왼쪽 자물쇠 아이콘 → 권한 → 위치 → <span className="text-green-300">허용</span></p>
-          </div>
-          <div>
-            <p className="text-slate-400 text-xs mb-1">그래도 안 될 때</p>
-            <p>설정 → 앱 → Chrome → 권한 → 위치 → <span className="text-green-300">앱 사용 중에만 허용</span></p>
-          </div>
-          <p className="text-slate-400 text-xs">설정 변경 후 페이지를 새로 고침해주세요</p>
-        </div>
-        <button onClick={() => window.location.reload()}
-          className="px-6 py-2 bg-indigo-500 hover:bg-indigo-400 rounded-xl text-sm font-semibold transition-colors">
-          새로 고침
-        </button>
-      </div>
-    );
-  }
 
 
   const kstHour = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
@@ -193,6 +161,9 @@ export default function Checkin() {
           </p>
           {geoState === 'no_school_set' && (
             <p className="text-yellow-300 text-xs mt-1">⚠ 학원 위치 미설정 (선생님: 학생 관리에서 설정)</p>
+          )}
+          {geoState === 'denied' && (
+            <p className="text-red-300 text-xs mt-1">⚠ 위치 권한 없음 (GPS 예외 학생만 체크인 가능)</p>
           )}
           {geoState === 'out_of_range' && (
             <p className="text-red-300 text-xs mt-1">⚠ 학원에서 약 {distance}m (GPS 예외 학생만 체크인 가능)</p>
