@@ -803,11 +803,13 @@ export function getStartTime(className: string, schedules: ClassSchedule[]): str
 }
 
 // 현재 시각(KST)이 수업 시작 시간보다 늦으면 지각
+const LATE_GRACE_MIN = 3;
+
 export function checkIfLate(startTime: string): boolean {
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const nowMinutes = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
   const [h, m] = startTime.split(':').map(Number);
-  return nowMinutes > h * 60 + m;
+  return nowMinutes > h * 60 + m + LATE_GRACE_MIN;
 }
 
 export function calcMinutesLate(startTime: string): number {
