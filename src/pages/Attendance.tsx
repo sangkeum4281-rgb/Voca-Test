@@ -53,6 +53,7 @@ export default function Attendance() {
   const [myName, setMyName] = useState(() => localStorage.getItem(STUDENT_NAME_KEY) ?? '');
   const [myRecords, setMyRecords] = useState<AttendanceRecord[]>([]);
   const [myLoading, setMyLoading] = useState(false);
+  const [mySearched, setMySearched] = useState(false);
   const [myYear, setMyYear] = useState(now.getFullYear());
   const [myMonth, setMyMonth] = useState(now.getMonth() + 1);
 
@@ -168,6 +169,7 @@ export default function Attendance() {
     if (!myName.trim()) return;
     localStorage.setItem(STUDENT_NAME_KEY, myName.trim());
     setMyLoading(true);
+    setMySearched(true);
     const data = await fetchAttendanceByMonth(y, m);
     setMyRecords(data.filter(r => r.studentName === myName.trim()));
     setMyLoading(false);
@@ -281,7 +283,9 @@ export default function Attendance() {
           </button>
         </div>
 
-        {myRecords.length > 0 && (
+        {myLoading && <div className="flex justify-center py-6"><Loader size={22} className="animate-spin text-indigo-400" /></div>}
+
+        {!myLoading && mySearched && (
           <>
             {/* 월 이동 */}
             <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-3">
@@ -290,44 +294,49 @@ export default function Attendance() {
               <button onClick={() => shiftMonth(1, true)} className="p-1.5 rounded hover:bg-slate-100"><ChevronRight size={16} /></button>
             </div>
 
-            {/* 요약 */}
-            <div className="grid grid-cols-3 gap-3">
-              {(['present','late','absent'] as const).map(s => {
-                const count = myRecords.filter(r => r.status === s).length;
-                const cfg = STATUS_CONFIG[s];
-                return (
-                  <div key={s} className={`rounded-xl border p-3 text-center ${cfg.color}`}>
-                    <p className="text-2xl font-bold">{count}</p>
-                    <p className="text-xs mt-0.5">{cfg.label}</p>
-                  </div>
-                );
-              })}
-            </div>
+            {myRecords.length === 0 ? (
+              <p className="text-center text-slate-400 text-sm py-4">이 달 출결 기록이 없습니다</p>
+            ) : (
+              <>
+                {/* 요약 */}
+                <div className="grid grid-cols-3 gap-3">
+                  {(['present','late','absent'] as const).map(s => {
+                    const count = myRecords.filter(r => r.status === s).length;
+                    const cfg = STATUS_CONFIG[s];
+                    return (
+                      <div key={s} className={`rounded-xl border p-3 text-center ${cfg.color}`}>
+                        <p className="text-2xl font-bold">{count}</p>
+                        <p className="text-xs mt-0.5">{cfg.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
 
-            {/* 월별 달력 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="grid grid-cols-7 gap-1 text-center mb-2">
-                {['일','월','화','수','목','금','토'].map(d => (
-                  <p key={d} className="text-xs text-slate-400 font-medium">{d}</p>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {/* 첫째 날 요일 맞춤 */}
-                {Array.from({ length: new Date(myYear, myMonth - 1, 1).getDay() }, (_, i) => (
-                  <div key={`empty-${i}`} />
-                ))}
-                {myDays.map(day => {
-                  const status = myMap[day];
-                  const cfg = status ? STATUS_CONFIG[status] : null;
-                  return (
-                    <div key={day} className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs ${cfg ? cfg.cell : 'bg-slate-50 text-slate-400'}`}>
-                      <p className="font-medium">{day}</p>
-                      {cfg && <p className="text-[10px] leading-none">{cfg.short}</p>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                {/* 월별 달력 */}
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                    {['일','월','화','수','목','금','토'].map(d => (
+                      <p key={d} className="text-xs text-slate-400 font-medium">{d}</p>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {Array.from({ length: new Date(myYear, myMonth - 1, 1).getDay() }, (_, i) => (
+                      <div key={`empty-${i}`} />
+                    ))}
+                    {myDays.map(day => {
+                      const status = myMap[day];
+                      const cfg = status ? STATUS_CONFIG[status] : null;
+                      return (
+                        <div key={day} className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs ${cfg ? cfg.cell : 'bg-slate-50 text-slate-400'}`}>
+                          <p className="font-medium">{day}</p>
+                          {cfg && <p className="text-[10px] leading-none">{cfg.short}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
