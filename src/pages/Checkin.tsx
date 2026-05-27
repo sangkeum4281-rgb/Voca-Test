@@ -90,6 +90,10 @@ export default function Checkin() {
       setError(`${student.name} 학생은 이미 체크인했습니다.`);
       return;
     }
+    if (geoState === 'out_of_range' && !student.gpsExempt) {
+      setError('학원 근처가 아닙니다. 위치를 확인해주세요.');
+      return;
+    }
 
     setProcessing(true);
     try {
@@ -167,15 +171,6 @@ export default function Checkin() {
     );
   }
 
-  if (geoState === 'out_of_range') {
-    return (
-      <div className="min-h-screen bg-slate-800 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
-        <MapPin size={64} className="text-red-400" />
-        <h1 className="text-2xl font-bold">학원 근처가 아닙니다</h1>
-        <p className="text-slate-300">현재 위치: 학원에서 약 {distance}m</p>
-      </div>
-    );
-  }
 
   const kstHour = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
   if (kstHour < 16 && !timeBypassed) {
@@ -199,7 +194,10 @@ export default function Checkin() {
           {geoState === 'no_school_set' && (
             <p className="text-yellow-300 text-xs mt-1">⚠ 학원 위치 미설정 (선생님: 학생 관리에서 설정)</p>
           )}
-          {distance !== null && (
+          {geoState === 'out_of_range' && (
+            <p className="text-red-300 text-xs mt-1">⚠ 학원에서 약 {distance}m (GPS 예외 학생만 체크인 가능)</p>
+          )}
+          {geoState === 'ok' && distance !== null && (
             <p className="text-green-300 text-xs mt-1">✓ 학원에서 {distance}m</p>
           )}
         </div>

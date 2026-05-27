@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TestType } from '../types';
 import {
-  fetchStudents, addStudent, deleteStudent, updateStudentPhone,
+  fetchStudents, addStudent, deleteStudent, updateStudentPhone, updateStudentGpsExempt,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
   fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
@@ -436,6 +436,14 @@ export default function Students() {
                                 </button>
                               </div>
                             )}
+                            <button onClick={async () => {
+                                const next = !s.gpsExempt;
+                                await updateStudentGpsExempt(s.id, next);
+                                setStudents(prev => prev.map(x => x.id === s.id ? { ...x, gpsExempt: next } : x));
+                              }}
+                              className={`text-xs px-1.5 py-0.5 rounded transition-colors flex-shrink-0 ${s.gpsExempt ? 'bg-orange-100 text-orange-600' : 'text-slate-300 hover:text-orange-400'}`}>
+                              GPS예외
+                            </button>
                             <button onClick={() => handleDelete(s.id, s.name)}
                               className="p-1.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0">
                               <Trash2 size={15} />

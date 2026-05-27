@@ -219,6 +219,7 @@ export interface Student {
   className: string;
   parentPhone: string;
   createdAt: string;
+  gpsExempt: boolean;
 }
 
 const isHighSchool = (cls: string) => /고등|고교|고\s*\d*\s*학년/.test(cls);
@@ -249,6 +250,7 @@ export async function fetchStudents(): Promise<Student[]> {
     className: (row.class_name as string) ?? '',
     parentPhone: (row.parent_phone as string) ?? '',
     createdAt: row.created_at as string,
+    gpsExempt: (row.gps_exempt as boolean) ?? false,
   })));
 }
 
@@ -264,6 +266,11 @@ export async function addStudent(name: string, className: string, parentPhone = 
 
 export async function updateStudentPhone(id: string, parentPhone: string): Promise<void> {
   const { error } = await supabase.from('students').update({ parent_phone: parentPhone }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateStudentGpsExempt(id: string, gpsExempt: boolean): Promise<void> {
+  const { error } = await supabase.from('students').update({ gps_exempt: gpsExempt }).eq('id', id);
   if (error) throw error;
 }
 
