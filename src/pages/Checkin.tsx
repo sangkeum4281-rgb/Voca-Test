@@ -131,9 +131,7 @@ export default function Checkin() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-8 text-white text-center"
         style={{ background: 'linear-gradient(135deg, #16a34a 0%, #15803d 50%, #166534 100%)' }}>
-        <div className="mb-6 rounded-full bg-white/20 p-6 shadow-2xl ring-4 ring-white/30">
-          <CheckCircle size={80} className="text-white drop-shadow-lg" />
-        </div>
+        <CheckCircle size={96} className="text-white mb-4" />
         <h1 className="text-4xl font-extrabold tracking-tight mb-2">출석 완료</h1>
         <p className="text-2xl font-semibold text-green-100 mb-1">{alreadyDoneByDevice}</p>
         <p className="text-green-200 text-sm">
