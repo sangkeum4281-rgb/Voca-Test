@@ -132,5 +132,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  return res.json({ ok: true, marked, smsSent, today });
+  const debug = (students ?? []).map(s => {
+    const className = s.class_name ?? '';
+    if (!className || /고등|고교/.test(className)) return { name: s.name, skip: '고등부/반없음' };
+    const startTime = openEntry?.time || getStartTime(className, scheduleMap);
+    const [h, m] = startTime.split(':').map(Number);
+    if (nowMin < h * 60 + m + AUTO_DELAY_MIN) return { name: s.name, skip: `시간미달(${startTime}, 현재${nowMin}분)` };
+    if (checkedIn.has(s.name)) return { name: s.name, skip: '이미출결' };
+    return { name: s.name, skip: null };
+  });
+  return res.json({ ok: true, marked, smsSent, today, nowMin, smsEnabled, debug });
 }
