@@ -162,12 +162,6 @@ export default function Checkin() {
           {geoState === 'no_school_set' && (
             <p className="text-yellow-300 text-xs mt-1">⚠ 학원 위치 미설정 (선생님: 학생 관리에서 설정)</p>
           )}
-          {geoState === 'denied' && (
-            <p className="text-red-300 text-xs mt-1">⚠ 위치 권한 없음 (GPS 예외 학생만 체크인 가능)</p>
-          )}
-          {geoState === 'out_of_range' && (
-            <p className="text-red-300 text-xs mt-1">⚠ 학원에서 약 {distance}m (GPS 예외 학생만 체크인 가능)</p>
-          )}
           {geoState === 'ok' && distance !== null && (
             <p className="text-green-300 text-xs mt-1">✓ 학원에서 {distance}m</p>
           )}
