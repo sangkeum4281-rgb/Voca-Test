@@ -88,11 +88,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
   const AUTO_DELAY_MIN = 10;
 
-  const [{ data: students }, { data: att }, { data: schedules }] = await Promise.all([
+  const [{ data: students, error: stuErr }, { data: att }, { data: schedules }] = await Promise.all([
     supabase.from('students').select('*'),
     supabase.from('attendance').select('student_name').eq('date', today),
     supabase.from('class_schedules').select('*'),
   ]);
+  if (stuErr) console.error('students 쿼리 에러:', stuErr);
 
   const scheduleMap: Record<string, string> = {};
   for (const s of schedules ?? []) scheduleMap[s.grade_key] = s.start_time;
@@ -141,5 +142,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (checkedIn.has(s.name)) return { name: s.name, skip: '이미출결' };
     return { name: s.name, skip: null };
   });
-  return res.json({ ok: true, marked, smsSent, today, nowMin, smsEnabled, debug });
+  return res.json({ ok: true, marked, smsSent, today, nowMin, smsEnabled, studentCount: (students ?? []).length, stuErr, debug });
 }
