@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Call auto-absent API
         run: |
-          curl -sf -X GET \
+          curl -sfL -X GET \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             "${{ secrets.VERCEL_URL }}/api/auto-absent"
