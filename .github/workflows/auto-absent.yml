@@ -1,6 +1,7 @@
 name: Auto Absent SMS
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '40 7 * * 1-5'  # 16:40 KST (월~금)
     - cron: '40 9 * * 1-5'  # 18:40 KST (월~금)
