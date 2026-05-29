@@ -232,6 +232,7 @@ export default function Students() {
   const notStartedCount = filteredStatus.filter(s => s.notAttempted === 4).length;
 
   return (
+    <>
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">학생 관리</h1>
@@ -770,11 +771,9 @@ export default function Students() {
         </div>
       )}
     </div>
-
-      {/* 문자 발송 하단 바 */}
       {smsMode && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-50">
-          <div className="max-w-lg mx-auto space-y-2">
+          <div className="max-w-lg mx-auto">
             <div className="flex gap-2">
               <input
                 className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
@@ -802,5 +801,6 @@ export default function Students() {
           </div>
         </div>
       )}
+    </>
   );
 }
