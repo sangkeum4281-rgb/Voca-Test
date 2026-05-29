@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TestType } from '../types';
 import {
-  fetchStudents, addStudent, deleteStudent, updateStudentPhone, updateStudentGpsExempt,
+  fetchStudents, addStudent, deleteStudent, updateStudentPhone, updateStudentGpsExempt, sendSmsToStudents,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
   fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
@@ -61,6 +61,10 @@ export default function Students() {
   const [gpsBypass, setGpsBypass] = useState(false);
   const [timeBypass, setTimeBypass] = useState(false);
   const [autoAbsentSms, setAutoAbsentSmsState] = useState(false);
+  const [smsMode, setSmsMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [smsText, setSmsText] = useState('');
+  const [smsSending, setSmsSending] = useState(false);
   const [smsTestPhone, setSmsTestPhoneState] = useState('');
   const [smsTestInput, setSmsTestInput] = useState('');
   const [closedDates, setClosedDates] = useState<string[]>([]);
@@ -381,6 +385,17 @@ export default function Students() {
             </button>
           </div>
 
+          {/* 문자 보내기 모드 토글 */}
+          <div className="flex items-center justify-between">
+            <button onClick={() => { setSmsMode(v => !v); setSelectedIds(new Set()); setSmsText(''); }}
+              className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${smsMode ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              {smsMode ? '문자 모드 취소' : '문자 보내기'}
+            </button>
+            {smsMode && selectedIds.size > 0 && (
+              <span className="text-xs text-indigo-600 font-medium">{selectedIds.size}명 선택됨</span>
+            )}
+          </div>
+
           {students.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
               <Users size={36} className="mx-auto text-slate-300 mb-3" />
@@ -405,6 +420,16 @@ export default function Students() {
                       <div className="divide-y divide-slate-100">
                         {inClass.map(s => (
                           <div key={s.id} className="flex items-center justify-between px-5 py-3 gap-3">
+                            {smsMode && (
+                              <input type="checkbox" checked={selectedIds.has(s.id)}
+                                onChange={() => setSelectedIds(prev => {
+                                  const next = new Set(prev);
+                                  next.has(s.id) ? next.delete(s.id) : next.add(s.id);
+                                  return next;
+                                })}
+                                className="w-4 h-4 accent-indigo-600 flex-shrink-0 cursor-pointer"
+                              />
+                            )}
                             <p className="font-medium text-slate-800 text-sm w-20 flex-shrink-0">{s.name}</p>
                             {editingPhoneId === s.id ? (
                               <div className="flex flex-1 gap-1.5">
@@ -745,5 +770,37 @@ export default function Students() {
         </div>
       )}
     </div>
+
+      {/* 문자 발송 하단 바 */}
+      {smsMode && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-50">
+          <div className="max-w-lg mx-auto space-y-2">
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                placeholder="메시지 입력 ([최강학원] 자동 추가)"
+                value={smsText}
+                onChange={e => setSmsText(e.target.value)}
+              />
+              <button
+                disabled={selectedIds.size === 0 || !smsText.trim() || smsSending}
+                onClick={async () => {
+                  if (!confirm(`${selectedIds.size}명에게 문자를 보낼까요?`)) return;
+                  setSmsSending(true);
+                  const { sent, failed } = await sendSmsToStudents([...selectedIds], `[최강학원] ${smsText.trim()}`);
+                  setSmsSending(false);
+                  alert(`발송 완료: ${sent}명 성공, ${failed}명 실패`);
+                  setSmsMode(false);
+                  setSelectedIds(new Set());
+                  setSmsText('');
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40 whitespace-nowrap"
+              >
+                {smsSending ? '발송 중...' : `${selectedIds.size}명 발송`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
   );
 }

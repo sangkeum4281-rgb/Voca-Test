@@ -383,6 +383,18 @@ export async function sendAligoAttendanceSms(
   return aligoPost(to, text);
 }
 
+export async function sendSmsToStudents(studentIds: string[], text: string): Promise<{ sent: number; failed: number }> {
+  const testPhone = await getSmsTestPhone();
+  const { data } = await supabase.from('students').select('parent_phone').in('id', studentIds).not('parent_phone', 'is', null).neq('parent_phone', '');
+  const phones = testPhone ? [testPhone] : [...new Set((data ?? []).map((r: { parent_phone: string }) => r.parent_phone.replace(/[^0-9]/g, '')).filter(Boolean))];
+  let sent = 0, failed = 0;
+  for (const to of phones) {
+    const r = await aligoPost(to, text);
+    r.success ? sent++ : failed++;
+  }
+  return { sent, failed };
+}
+
 export async function sendAligoBulkSms(text: string): Promise<{ sent: number; failed: number }> {
   const testPhone = await getSmsTestPhone();
   const { data } = await supabase.from('students').select('parent_phone').not('parent_phone', 'is', null).neq('parent_phone', '');
