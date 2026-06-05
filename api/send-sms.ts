@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'x-ncp-apigw-signature-v2': makeSignature(timestamp),
       },
       body: JSON.stringify({
-        type: 'SMS',
+        type: Buffer.byteLength(text, 'utf8') > 90 ? 'LMS' : 'SMS',
         from: sender,
         content: text,
         messages: [{ to: to.replace(/[^0-9]/g, ''), content: text }],
