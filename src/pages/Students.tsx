@@ -409,14 +409,27 @@ export default function Students() {
                 const collapsed = collapsedClasses.has(cls);
                 return (
                   <div key={cls} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <button onClick={() => toggleClass(cls)}
-                      className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 transition-colors">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center px-5 py-3 bg-slate-50">
+                      <button onClick={() => toggleClass(cls)} className="flex-1 flex items-center gap-2 text-left">
                         <p className="text-sm font-semibold text-slate-700">{cls || '반 미지정'}</p>
                         <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{inClass.length}명</span>
-                      </div>
-                      {collapsed ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronUp size={16} className="text-slate-400" />}
-                    </button>
+                      </button>
+                      {smsMode && (
+                        <button onClick={() => {
+                          const allSelected = inClass.every(s => selectedIds.has(s.id));
+                          setSelectedIds(prev => {
+                            const next = new Set(prev);
+                            inClass.forEach(s => allSelected ? next.delete(s.id) : next.add(s.id));
+                            return next;
+                          });
+                        }} className="text-xs text-indigo-600 hover:text-indigo-800 mr-3 whitespace-nowrap">
+                          {inClass.every(s => selectedIds.has(s.id)) ? '전체 해제' : '전체 선택'}
+                        </button>
+                      )}
+                      <button onClick={() => toggleClass(cls)}>
+                        {collapsed ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronUp size={16} className="text-slate-400" />}
+                      </button>
+                    </div>
                     {!collapsed && (
                       <div className="divide-y divide-slate-100">
                         {inClass.map(s => (
