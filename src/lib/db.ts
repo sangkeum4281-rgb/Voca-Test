@@ -311,7 +311,7 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
     if (!to) return { success: false, error: '학부모 전화번호가 등록되지 않았습니다' };
 
     const dateStr = new Date(date + 'T00:00:00+09:00')
-      .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+      .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' });
     const lateStr = (() => {
       if (status !== 'late' || !minutesLate) return '지각';
       if (minutesLate < 60) return `${minutesLate}분 지각`;
@@ -370,7 +370,7 @@ export async function sendAligoAttendanceSms(
   const to = testPhone || parentPhone;
   if (!to) return { success: false, error: '학부모 전화번호가 등록되지 않았습니다' };
 
-  const dateStr = new Date(date + 'T00:00:00+09:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  const dateStr = new Date(date + 'T00:00:00+09:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' });
   const lateStr = (() => {
     if (status !== 'late' || !minutesLate) return '지각';
     if (minutesLate < 60) return `${minutesLate}분 지각`;

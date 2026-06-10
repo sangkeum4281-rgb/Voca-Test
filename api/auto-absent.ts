@@ -123,7 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!to) continue;
 
       const dateStr = new Date(today + 'T00:00:00+09:00')
-        .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+        .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' });
       const text = `[최강학원] ${student.name} 학생이 오늘(${dateStr}) 수업에 결석했습니다.`;
 
       const ok = await sendNcpSms(to, text);
