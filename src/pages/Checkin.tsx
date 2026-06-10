@@ -7,6 +7,7 @@ import {
 import { CheckCircle, Loader, AlertCircle } from 'lucide-react';
 
 const RADIUS_M = 100;
+const STUDENT_NAME_KEY = 'vocab-student-name';
 
 type GeoState = 'checking' | 'ok' | 'denied' | 'out_of_range' | 'no_school_set';
 
@@ -19,7 +20,7 @@ export default function Checkin() {
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<{ name: string; isLate: boolean } | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
-  const [nameInput, setNameInput] = useState('');
+  const [nameInput, setNameInput] = useState(() => localStorage.getItem(STUDENT_NAME_KEY) ?? '');
   const [error, setError] = useState('');
   const [timeBypassed, setTimeBypassed] = useState(false);
 
@@ -108,6 +109,7 @@ export default function Checkin() {
       const note = isLate ? `${minutesLate}분` : '';
       await upsertAttendance({ studentName: student.name, date: today, status, note });
       localStorage.setItem(deviceKey, student.name);
+      localStorage.setItem(STUDENT_NAME_KEY, student.name);
       setCheckedIn(prev => new Set([...prev, student.name]));
       setSuccess({ name: student.name, isLate });
       setNameInput('');
