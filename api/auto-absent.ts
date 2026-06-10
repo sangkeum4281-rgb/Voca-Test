@@ -51,6 +51,9 @@ function isWeekendKST(): boolean {
 }
 
 function getStartTime(className: string, scheduleMap: Record<string, string>): string {
+  // 반별 개별 설정 우선 (같은 학년이라도 시간대가 다른 반 대응)
+  if (scheduleMap[className]) return scheduleMap[className];
+
   const gradeMatch = className.match(/(\d+)학년/);
   if (!gradeMatch) return '16:30';
   const grade = `${gradeMatch[1]}학년`;

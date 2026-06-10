@@ -4,7 +4,7 @@ import type { TestType } from '../types';
 import {
   fetchStudents, addStudent, deleteStudent, updateStudentPhone, updateStudentGpsExempt, sendSmsToStudents,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
-  fetchClassSchedules, upsertClassSchedule, setSchoolLocation, getSchoolLocation,
+  fetchClassSchedules, upsertClassSchedule, deleteClassSchedule, getStartTime, setSchoolLocation, getSchoolLocation,
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
   getSmsTestPhone, setSmsTestPhone, getSpecialDates, setSpecialDates,
   getCheckinTimeBypassed, setCheckinTimeBypassUntil,
@@ -54,7 +54,7 @@ export default function Students() {
   const [collapsedClasses, setCollapsedClasses] = useState<Set<string>>(new Set());
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null);
   const [editingPhoneVal, setEditingPhoneVal] = useState('');
-  const [_schedules, setSchedules] = useState<ClassSchedule[]>([]);
+  const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [scheduleEdits, setScheduleEdits] = useState<Record<string, string>>({});
   const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
   const [savingPos, setSavingPos] = useState(false);
@@ -695,6 +695,65 @@ export default function Students() {
               </div>
             </div>
           ))}
+
+          {/* 반별 시간 설정 (같은 학년이라도 시간대가 다른 반) */}
+          {classes.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 px-1 mb-1">반별 시간 (학년 기본값과 다를 때만 입력)</p>
+              <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+                {classes.map(cls => {
+                  const override = schedules.find(s => s.gradeKey === cls);
+                  const defaultTime = getStartTime(cls, schedules.filter(s => s.gradeKey !== cls));
+                  return (
+                    <div key={cls} className="flex items-center justify-between px-5 py-4 gap-2">
+                      <span className="font-semibold text-slate-700 text-sm truncate">{cls}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <input
+                          type="time"
+                          value={scheduleEdits[cls] ?? override?.startTime ?? ''}
+                          placeholder={defaultTime}
+                          onChange={e => setScheduleEdits(prev => ({ ...prev, [cls]: e.target.value }))}
+                          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                        />
+                        <button
+                          onClick={async () => {
+                            const t = scheduleEdits[cls];
+                            if (!t) return;
+                            await upsertClassSchedule(cls, t);
+                            setSchedules(prev => {
+                              const exists = prev.find(s => s.gradeKey === cls);
+                              if (exists) return prev.map(s => s.gradeKey === cls ? { ...s, startTime: t } : s);
+                              return [...prev, { gradeKey: cls, startTime: t }];
+                            });
+                            alert(`${cls} 수업 시간이 저장되었습니다.`);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700"
+                        >
+                          저장
+                        </button>
+                        {override && (
+                          <button
+                            onClick={async () => {
+                              await deleteClassSchedule(cls);
+                              setSchedules(prev => prev.filter(s => s.gradeKey !== cls));
+                              setScheduleEdits(prev => {
+                                const next = { ...prev };
+                                delete next[cls];
+                                return next;
+                              });
+                            }}
+                            className="px-2 py-1.5 text-xs text-slate-400 hover:text-red-500"
+                          >
+                            초기화
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 휴원일 / 보강일 설정 */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">

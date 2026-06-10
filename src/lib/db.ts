@@ -782,6 +782,14 @@ export async function upsertClassSchedule(gradeKey: string, startTime: string): 
   if (error) throw error;
 }
 
+export async function deleteClassSchedule(gradeKey: string): Promise<void> {
+  const { error } = await supabase
+    .from('class_schedules')
+    .delete()
+    .eq('grade_key', gradeKey);
+  if (error) throw error;
+}
+
 const GRADE_DEFAULTS: Record<string, string> = {
   '중등부 1학년': '16:30',
   '중등부 2학년': '18:30',
@@ -800,6 +808,10 @@ function classToGradeKey(className: string): string | null {
 }
 
 export function getStartTime(className: string, schedules: ClassSchedule[]): string {
+  // 반별 개별 설정 우선 (같은 학년이라도 시간대가 다른 반 대응)
+  const exact = schedules.find(s => s.gradeKey === className);
+  if (exact) return exact.startTime;
+
   const key = classToGradeKey(className);
   if (!key) return '16:30';
   // 신 형식 먼저 ('중등부 1학년')
