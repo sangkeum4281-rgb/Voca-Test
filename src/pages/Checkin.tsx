@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAligoAttendanceSms,
   fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil, getCheckinTimeBypassed,
+  getSpecialDates, type OpenDate,
   type Student, type ClassSchedule,
 } from '../lib/db';
 import { CheckCircle, Loader, AlertCircle } from 'lucide-react';
@@ -23,6 +24,7 @@ export default function Checkin() {
   const [nameInput, setNameInput] = useState(() => localStorage.getItem(STUDENT_NAME_KEY) ?? '');
   const [error, setError] = useState('');
   const [timeBypassed, setTimeBypassed] = useState(false);
+  const [openEntry, setOpenEntry] = useState<OpenDate | null>(null);
 
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const deviceKey = `checkin-${today}`;
@@ -37,13 +39,15 @@ export default function Checkin() {
 
   useEffect(() => {
     const loadData = async () => {
-      const [stu, att, sch, timeBp] = await Promise.all([
+      const [stu, att, sch, timeBp, special] = await Promise.all([
         fetchStudents(),
         fetchAttendanceByDate(today),
         fetchClassSchedules().catch(() => []),
         getCheckinTimeBypassed(),
+        getSpecialDates().catch(() => ({ closed: [], open: [] })),
       ]);
       setTimeBypassed(timeBp);
+      setOpenEntry(special.open.find(o => o.date === today) ?? null);
       setStudents(stu);
       setSchedules(sch);
       setCheckedIn(new Set(
@@ -102,7 +106,7 @@ export default function Checkin() {
 
     setProcessing(true);
     try {
-      const startTime = getStartTime(student.className, schedules);
+      const startTime = openEntry?.time || getStartTime(student.className, schedules);
       const isLate = checkIfLate(startTime);
       const minutesLate = isLate ? calcMinutesLate(startTime) : 0;
       const status = isLate ? 'late' : 'present';
@@ -149,7 +153,7 @@ export default function Checkin() {
 
 
   const kstHour = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
-  if (kstHour < 16 && !timeBypassed) {
+  if (kstHour < 16 && !timeBypassed && !openEntry) {
     return (
       <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
         <AlertCircle size={64} className="text-yellow-300" />
