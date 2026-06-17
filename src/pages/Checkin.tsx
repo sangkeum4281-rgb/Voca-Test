@@ -106,7 +106,8 @@ export default function Checkin() {
 
     setProcessing(true);
     try {
-      const startTime = openEntry?.time || getStartTime(student.className, schedules);
+      const appliesToday = !openEntry?.classes?.length || openEntry.classes.includes(student.className);
+      const startTime = (appliesToday && openEntry?.time) || getStartTime(student.className, schedules);
       const isLate = checkIfLate(startTime);
       const minutesLate = isLate ? calcMinutesLate(startTime) : 0;
       const status = isLate ? 'late' : 'present';

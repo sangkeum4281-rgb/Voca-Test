@@ -679,7 +679,7 @@ export async function setSmsTestPhone(phone: string): Promise<void> {
   );
 }
 
-export interface OpenDate { date: string; time?: string; }
+export interface OpenDate { date: string; time?: string; classes?: string[]; }
 
 export async function getSpecialDates(): Promise<{ closed: string[]; open: OpenDate[] }> {
   const { data } = await supabase.from('school_settings').select('key,value').in('key', ['closed_dates', 'open_dates']);
@@ -865,7 +865,12 @@ export async function autoMarkAbsent(sendSms = false): Promise<void> {
   for (const student of stu) {
     if (!student.className) continue;
     if (/고등|고교/.test(student.className)) continue;
-    const startTime = openEntry?.time || getStartTime(student.className, sch);
+
+    // 보강일에 반이 지정된 경우, 해당 반이 아니면 오늘 수업 없음
+    const appliesToday = !openEntry?.classes?.length || openEntry.classes.includes(student.className);
+    if (isWeekend && !appliesToday) continue;
+
+    const startTime = (appliesToday && openEntry?.time) || getStartTime(student.className, sch);
     const [h, m] = startTime.split(':').map(Number);
     if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue;
     if (att.find(a => a.studentName === student.name)) continue;

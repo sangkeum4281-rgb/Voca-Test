@@ -71,6 +71,7 @@ export default function Students() {
   const [openDates, setOpenDates] = useState<import('../lib/db').OpenDate[]>([]);
   const [specialDateInput, setSpecialDateInput] = useState('');
   const [specialTimeInput, setSpecialTimeInput] = useState('');
+  const [specialClassesInput, setSpecialClassesInput] = useState<Set<string>>(new Set());
 
   const downloadQR = async () => {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + '/checkin')}`;
@@ -774,11 +775,39 @@ export default function Students() {
               <p className="text-xs text-slate-400">시간 미입력 시 기본 수업 시간 적용</p>
               <button onClick={async () => {
                 if (!specialDateInput || openDates.find(o => o.date === specialDateInput)) return;
-                const next = [...openDates, { date: specialDateInput, time: specialTimeInput || undefined }].sort((a,b) => a.date.localeCompare(b.date));
+                const next = [...openDates, {
+                  date: specialDateInput,
+                  time: specialTimeInput || undefined,
+                  classes: specialClassesInput.size > 0 ? [...specialClassesInput] : undefined,
+                }].sort((a,b) => a.date.localeCompare(b.date));
                 await setSpecialDates(closedDates, next);
-                setOpenDates(next); setSpecialDateInput(''); setSpecialTimeInput('');
+                setOpenDates(next); setSpecialDateInput(''); setSpecialTimeInput(''); setSpecialClassesInput(new Set());
               }} className="ml-auto px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 whitespace-nowrap">보강일 추가</button>
             </div>
+            {classes.length > 0 && (
+              <div>
+                <p className="text-xs text-slate-400 mb-1.5">대상 반 (선택 안 하면 전체 반 적용)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {classes.map(c => {
+                    const selected = specialClassesInput.has(c);
+                    return (
+                      <button key={c} type="button" onClick={() => {
+                        setSpecialClassesInput(prev => {
+                          const next = new Set(prev);
+                          next.has(c) ? next.delete(c) : next.add(c);
+                          return next;
+                        });
+                      }}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          selected ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'
+                        }`}>
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {closedDates.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-red-500 mb-1">휴원일</p>
@@ -801,7 +830,7 @@ export default function Students() {
                 <div className="flex flex-wrap gap-1.5">
                   {openDates.map(o => (
                     <span key={o.date} className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-600 text-xs px-2 py-1 rounded-full">
-                      {o.date}{o.time ? ` ${o.time}` : ''}
+                      {o.date}{o.time ? ` ${o.time}` : ''}{o.classes?.length ? ` · ${o.classes.join(', ')}` : ''}
                       <button onClick={async () => {
                         const next = openDates.filter(x => x.date !== o.date);
                         await setSpecialDates(closedDates, next); setOpenDates(next);

@@ -81,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const smsEnabled = sm['auto_absent_sms'] === 'true';
   const testPhone = (sm['sms_test_phone'] ?? '').replace(/[^0-9]/g, '');
   const closedDates = sm['closed_dates'] ? sm['closed_dates'].split(',').filter(Boolean) : [];
-  let openDates: { date: string; time?: string }[] = [];
+  let openDates: { date: string; time?: string; classes?: string[] }[] = [];
   try { openDates = sm['open_dates'] ? JSON.parse(sm['open_dates']) : []; } catch { openDates = []; }
   const openEntry = openDates.find(o => o.date === today);
 
@@ -109,7 +109,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const className = student.class_name ?? '';
     if (!className || /고등|고교/.test(className)) continue;
 
-    const startTime = openEntry?.time || getStartTime(className, scheduleMap);
+    // 보강일에 반이 지정된 경우, 해당 반이 아니면 오늘 수업 없음 (예: 중등부 1학년은 주말 보강 미참여)
+    const appliesToday = !openEntry?.classes?.length || openEntry.classes.includes(className);
+    if (isWeekend && !appliesToday) continue;
+
+    const startTime = (appliesToday && openEntry?.time) || getStartTime(className, scheduleMap);
     const [h, m] = startTime.split(':').map(Number);
     if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue;
     if (checkedIn.has(student.name)) continue;
