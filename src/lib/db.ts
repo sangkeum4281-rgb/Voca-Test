@@ -602,10 +602,14 @@ export async function fetchAttendanceByMonth(year: number, month: number): Promi
 
 // ── class notices (알림장) ─────────────────────────────────
 
+export const NOTICE_SUBJECTS = ['국어/역사', '수학', '영어', '과학/사회'] as const;
+export type NoticeSubject = typeof NOTICE_SUBJECTS[number];
+
 export interface ClassNotice {
   id: string;
   className: string;
   content: string;
+  subject?: string;
   createdAt: string;
 }
 
@@ -620,6 +624,7 @@ export async function fetchClassNotices(className: string): Promise<ClassNotice[
     id: r.id as string,
     className: r.class_name as string,
     content: r.content as string,
+    subject: (r.subject as string) || undefined,
     createdAt: r.created_at as string,
   }));
 }
@@ -634,14 +639,15 @@ export async function fetchAllClassNotices(): Promise<ClassNotice[]> {
     id: r.id as string,
     className: r.class_name as string,
     content: r.content as string,
+    subject: (r.subject as string) || undefined,
     createdAt: r.created_at as string,
   }));
 }
 
-export async function addClassNotice(className: string, content: string): Promise<void> {
+export async function addClassNotice(className: string, content: string, subject?: string): Promise<void> {
   const { error } = await supabase
     .from('class_notices')
-    .insert({ class_name: className, content });
+    .insert({ class_name: className, content, subject: subject ?? null });
   if (error) throw error;
 }
 

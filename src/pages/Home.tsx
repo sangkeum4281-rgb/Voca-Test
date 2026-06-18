@@ -4,11 +4,13 @@ import {
   fetchWordLists, fetchAnnouncements, fetchQna,
   fetchAttendanceByDate, fetchStudents,
   getAutoAbsentSms, sendAligoBulkSms, autoMarkAbsent,
-  type Announcement, type QnaItem, type AttendanceRecord, type Student,
+  fetchAllClassNotices, addClassNotice,
+  NOTICE_SUBJECTS,
+  type Announcement, type QnaItem, type AttendanceRecord, type Student, type ClassNotice,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send } from 'lucide-react';
+import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send, Bell } from 'lucide-react';
 
 function isWeekend() { const d = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCDay(); return d === 0 || d === 6; }
 
@@ -23,6 +25,13 @@ export default function Home() {
   const [noticeText, setNoticeText] = useState('');
   const [noticeSending, setNoticeSending] = useState(false);
 
+  // 알림장
+  const [notices, setNotices] = useState<ClassNotice[]>([]);
+  const [noticeClass, setNoticeClass] = useState('');
+  const [noticeSubject, setNoticeSubject] = useState<string>('');
+  const [noticeContent, setNoticeContent] = useState('');
+  const [noticeSavingHome, setNoticeSavingHome] = useState(false);
+
 
   const fetchAll = () => {
     const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -32,12 +41,16 @@ export default function Home() {
       fetchQna(),
       fetchAttendanceByDate(today),
       fetchStudents(),
-    ]).then(([wl, ann, q, att, stu]) => {
+      fetchAllClassNotices(),
+    ]).then(([wl, ann, q, att, stu, nts]) => {
       setWordLists(wl);
       setAnnouncements(ann.slice(0, 3));
       setQna(q);
       setTodayAtt(att);
-      setStudents(stu);
+      setStudents(stu as Student[]);
+      setNotices(nts as ClassNotice[]);
+      const classes = [...new Set((stu as Student[]).map(s => s.className).filter(Boolean))].sort();
+      if (classes.length > 0) setNoticeClass(classes[0]);
       setLoading(false);
     });
   };
@@ -84,7 +97,7 @@ export default function Home() {
   };
 
   // 반별 결석·지각자 그룹
-  const classes = [...new Set(students.filter(s => !/고등|고교/.test(s.className ?? '')).map(s => s.className).filter(Boolean))].sort();
+  const classes = [...new Set(students.map(s => s.className).filter(Boolean))].sort();
   const absentByClass = classes.map(cls => {
     const classStudents = students.filter(s => s.className === cls);
     const absentNames = classStudents
@@ -154,6 +167,78 @@ export default function Home() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 알림장 */}
+      {isTeacher && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+            <Bell size={16} className="text-amber-500" />
+            <h2 className="font-semibold text-slate-700">알림장</h2>
+          </div>
+          <div className="px-5 py-4 space-y-3">
+            {/* 반 선택 */}
+            <div className="flex flex-wrap gap-2">
+              {classes.map(c => (
+                <button key={c} onClick={() => setNoticeClass(c)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    noticeClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            {/* 과목 선택 */}
+            <div className="flex flex-wrap gap-2">
+              {NOTICE_SUBJECTS.map(s => (
+                <button key={s} onClick={() => setNoticeSubject(prev => prev === s ? '' : s)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    noticeSubject === s ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'
+                  }`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            {/* 내용 + 등록 */}
+            <div className="flex gap-3">
+              <textarea
+                value={noticeContent}
+                onChange={e => setNoticeContent(e.target.value)}
+                placeholder="숙제, 시험 안내 등 학부모에게 전달할 내용"
+                rows={3}
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <button
+                disabled={!noticeContent.trim() || !noticeClass || noticeSavingHome}
+                onClick={async () => {
+                  if (!noticeContent.trim() || !noticeClass) return;
+                  setNoticeSavingHome(true);
+                  try {
+                    await addClassNotice(noticeClass, noticeContent.trim(), noticeSubject || undefined);
+                    setNoticeContent('');
+                    setNotices(await fetchAllClassNotices());
+                  } catch { alert('등록에 실패했습니다.'); }
+                  finally { setNoticeSavingHome(false); }
+                }}
+                className="flex-shrink-0 flex flex-col items-center justify-center gap-1 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 disabled:opacity-40 transition-colors">
+                {noticeSavingHome ? <Loader size={16} className="animate-spin" /> : <Bell size={16} />}
+                <span className="text-xs">{noticeSavingHome ? '등록중' : '등록'}</span>
+              </button>
+            </div>
+            {/* 최근 알림 3개 */}
+            {notices.length > 0 && (
+              <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                {notices.slice(0, 3).map(n => (
+                  <div key={n.id} className="flex items-start gap-2 py-1.5">
+                    <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full shrink-0">{n.className}</span>
+                    {n.subject && <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full shrink-0">{n.subject}</span>}
+                    <p className="text-xs text-slate-600 truncate flex-1">{n.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
