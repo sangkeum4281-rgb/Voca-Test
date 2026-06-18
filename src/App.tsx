@@ -13,28 +13,34 @@ import Announcements from './pages/Announcements';
 import QnA from './pages/QnA';
 import Checkin from './pages/Checkin';
 import CheckinQR from './pages/CheckinQR';
+import Parent from './pages/Parent';
 import './index.css';
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/wordlists" element={<WordLists />} />
-            <Route path="/wordlists/:id" element={<WordListDetail />} />
-            <Route path="/test/:id" element={<Test />} />
-            <Route path="/results" element={<Results />} />
-            <Route path="/teacher" element={<TeacherLogin />} />
-            <Route path="/students" element={<Students />} />
-            <Route path="/attendance" element={<Attendance />} />
-            <Route path="/announcements" element={<Announcements />} />
-            <Route path="/qna" element={<QnA />} />
-            <Route path="/checkin" element={<Checkin />} />
-            <Route path="/checkin-qr" element={<CheckinQR />} />
-          </Routes>
-        </Layout>
+        <Routes>
+          <Route path="/parent" element={<Parent />} />
+          <Route path="/*" element={
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/wordlists" element={<WordLists />} />
+                <Route path="/wordlists/:id" element={<WordListDetail />} />
+                <Route path="/test/:id" element={<Test />} />
+                <Route path="/results" element={<Results />} />
+                <Route path="/teacher" element={<TeacherLogin />} />
+                <Route path="/students" element={<Students />} />
+                <Route path="/attendance" element={<Attendance />} />
+                <Route path="/announcements" element={<Announcements />} />
+                <Route path="/qna" element={<QnA />} />
+                <Route path="/checkin" element={<Checkin />} />
+                <Route path="/checkin-qr" element={<CheckinQR />} />
+              </Routes>
+            </Layout>
+          } />
+        </Routes>
       </BrowserRouter>
     </AuthProvider>
   );

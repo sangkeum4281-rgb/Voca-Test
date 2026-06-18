@@ -600,6 +600,59 @@ export async function fetchAttendanceByMonth(year: number, month: number): Promi
   }));
 }
 
+// ── class notices (알림장) ─────────────────────────────────
+
+export interface ClassNotice {
+  id: string;
+  className: string;
+  content: string;
+  createdAt: string;
+}
+
+export async function fetchClassNotices(className: string): Promise<ClassNotice[]> {
+  const { data, error } = await supabase
+    .from('class_notices')
+    .select('*')
+    .eq('class_name', className)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(r => ({
+    id: r.id as string,
+    className: r.class_name as string,
+    content: r.content as string,
+    createdAt: r.created_at as string,
+  }));
+}
+
+export async function fetchAllClassNotices(): Promise<ClassNotice[]> {
+  const { data, error } = await supabase
+    .from('class_notices')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(r => ({
+    id: r.id as string,
+    className: r.class_name as string,
+    content: r.content as string,
+    createdAt: r.created_at as string,
+  }));
+}
+
+export async function addClassNotice(className: string, content: string): Promise<void> {
+  const { error } = await supabase
+    .from('class_notices')
+    .insert({ class_name: className, content });
+  if (error) throw error;
+}
+
+export async function deleteClassNotice(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('class_notices')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ── Q&A ──────────────────────────────────────────────────
 
 export interface QnaItem {
