@@ -8,7 +8,7 @@ import {
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
   getSmsTestPhone, setSmsTestPhone, getSpecialDates, setSpecialDates,
   getCheckinTimeBypassed, setCheckinTimeBypassUntil,
-  fetchAllClassNotices, addClassNotice, deleteClassNotice,
+  fetchAllClassNotices, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS,
   type Student, type AttendanceRecord, type ClassSchedule, type ClassNotice,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -75,6 +75,7 @@ export default function Students() {
   const [specialClassesInput, setSpecialClassesInput] = useState<Set<string>>(new Set());
   const [notices, setNotices] = useState<ClassNotice[]>([]);
   const [noticeClass, setNoticeClass] = useState('');
+  const [noticeSubject, setNoticeSubject] = useState('');
   const [noticeContent, setNoticeContent] = useState('');
   const [noticeSaving, setNoticeSaving] = useState(false);
 
@@ -899,6 +900,16 @@ export default function Students() {
                 </button>
               ))}
             </div>
+            <div className="flex flex-wrap gap-2">
+              {NOTICE_SUBJECTS.map(s => (
+                <button key={s} type="button" onClick={() => setNoticeSubject(prev => prev === s ? '' : s)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    noticeSubject === s ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'
+                  }`}>
+                  {s}
+                </button>
+              ))}
+            </div>
             <textarea
               value={noticeContent}
               onChange={e => setNoticeContent(e.target.value)}
@@ -912,8 +923,9 @@ export default function Students() {
                 if (!noticeContent.trim() || !noticeClass) return;
                 setNoticeSaving(true);
                 try {
-                  await addClassNotice(noticeClass, noticeContent.trim());
+                  await addClassNotice(noticeClass, noticeContent.trim(), noticeSubject || undefined);
                   setNoticeContent('');
+                  setNoticeSubject('');
                   const updated = await fetchAllClassNotices();
                   setNotices(updated);
                 } finally { setNoticeSaving(false); }
@@ -935,6 +947,7 @@ export default function Students() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n.className}</span>
+                      {n.subject && <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">{n.subject}</span>}
                       <span className="text-xs text-slate-400">
                         {new Date(n.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' })}
                       </span>
