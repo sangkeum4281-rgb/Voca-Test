@@ -21,7 +21,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/parent" element={<Parent />} />
+          <Route path="/학부모" element={<Parent />} />
           <Route path="/*" element={
             <Layout>
               <Routes>
