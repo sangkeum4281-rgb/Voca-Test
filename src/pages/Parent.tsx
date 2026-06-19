@@ -88,20 +88,22 @@ export default function Parent() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
-        {/* 이름 검색 */}
-        <div className="flex gap-2">
-          <input
-            className="flex-1 border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-            value={nameInput}
-            onChange={e => setNameInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder="학생 이름 입력"
-          />
-          <button onClick={handleSearch} disabled={!nameInput.trim() || loading}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40">
-            {loading ? <Loader size={14} className="animate-spin" /> : '조회'}
-          </button>
-        </div>
+        {/* 이름 검색 — URL에 이름 있으면 숨김 */}
+        {!params.get('name') && (
+          <div className="flex gap-2">
+            <input
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              placeholder="학생 이름 입력"
+            />
+            <button onClick={handleSearch} disabled={!nameInput.trim() || loading}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40">
+              {loading ? <Loader size={14} className="animate-spin" /> : '조회'}
+            </button>
+          </div>
+        )}
 
         {notFound && (
           <p className="text-center text-slate-400 text-sm py-4">등록된 학생 이름이 아닙니다.</p>
