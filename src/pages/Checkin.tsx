@@ -99,8 +99,12 @@ export default function Checkin() {
       setError(`${student.name} 학생은 이미 출석했습니다.`);
       return;
     }
-    if ((geoState === 'out_of_range' || geoState === 'denied') && !student.gpsExempt) {
-      setError(geoState === 'denied' ? '위치 권한을 허용해주세요.' : '학원 근처가 아닙니다. 위치를 확인해주세요.');
+    if ((geoState === 'out_of_range' || geoState === 'denied' || geoState === 'no_school_set') && !student.gpsExempt) {
+      setError(
+        geoState === 'denied' ? '위치 권한을 허용해주세요.' :
+        geoState === 'no_school_set' ? '학원 위치가 설정되지 않았습니다. 선생님께 문의하세요.' :
+        '학원 근처가 아닙니다. 위치를 확인해주세요.'
+      );
       return;
     }
 
