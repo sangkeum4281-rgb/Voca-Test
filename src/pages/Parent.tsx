@@ -117,12 +117,14 @@ export default function Parent() {
             {/* ── 알림장 ── */}
             {notices.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2">
                   <Bell size={15} className="text-amber-600" />
-                  <h2 className="font-semibold text-amber-800 text-sm">오늘 알림장</h2>
-                  <span className="text-xs text-amber-600 ml-auto">
-                    {new Date(Date.now() + 9 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' })}
-                  </span>
+                  <div>
+                    <h2 className="font-semibold text-amber-800 text-sm leading-tight">오늘 알림장</h2>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      {new Date(Date.now() + 9 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' })}
+                    </p>
+                  </div>
                 </div>
                 {notices.map(n => {
                   const SUBJECT_COLORS: Record<string, string> = {
