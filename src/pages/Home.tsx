@@ -27,7 +27,7 @@ export default function Home() {
 
   // 알림장
   const [notices, setNotices] = useState<ClassNotice[]>([]);
-  const [noticeClass, setNoticeClass] = useState('');
+  const [noticeClasses, setNoticeClasses] = useState<Set<string>>(new Set());
   const [noticeContents, setNoticeContents] = useState<Record<string, string>>({});
   const [noticeSavingHome, setNoticeSavingHome] = useState(false);
 
@@ -48,8 +48,7 @@ export default function Home() {
       setTodayAtt(att);
       setStudents(stu as Student[]);
       setNotices(nts as ClassNotice[]);
-      const classes = sortClasses([...new Set((stu as Student[]).map(s => s.className).filter(Boolean))]);
-      if (classes.length > 0) setNoticeClass(classes[0]);
+      sortClasses([...new Set((stu as Student[]).map(s => s.className).filter(Boolean))]);
       setLoading(false);
     });
   };
@@ -181,11 +180,21 @@ export default function Home() {
             </span>
           </div>
           <div className="px-5 py-4 space-y-3">
-            {/* 반 선택 */}
-            <select value={noticeClass} onChange={e => setNoticeClass(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer">
-              {classes.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {/* 반 선택 (다중) */}
+            <div className="flex flex-wrap gap-1.5">
+              {classes.map(c => {
+                const on = noticeClasses.has(c);
+                return (
+                  <button key={c} type="button" onClick={() => setNoticeClasses(prev => {
+                    const next = new Set(prev); on ? next.delete(c) : next.add(c); return next;
+                  })} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}>
+                    {on && '✓ '}{c}
+                  </button>
+                );
+              })}
+            </div>
             {/* 과목별 입력 */}
             <div className="space-y-1.5">
               {([
@@ -207,13 +216,14 @@ export default function Home() {
               ))}
             </div>
             <button
-              disabled={!noticeClass || NOTICE_SUBJECTS.every(s => !noticeContents[s]?.trim()) || noticeSavingHome}
+              disabled={noticeClasses.size === 0 || NOTICE_SUBJECTS.every(s => !noticeContents[s]?.trim()) || noticeSavingHome}
               onClick={async () => {
                 const entries = NOTICE_SUBJECTS.filter(s => noticeContents[s]?.trim());
-                if (!noticeClass || entries.length === 0) return;
+                const selectedClasses = [...noticeClasses];
+                if (selectedClasses.length === 0 || entries.length === 0) return;
                 setNoticeSavingHome(true);
                 try {
-                  await Promise.all(entries.map(s => addClassNotice(noticeClass, noticeContents[s].trim(), s)));
+                  await Promise.all(selectedClasses.flatMap(cls => entries.map(s => addClassNotice(cls, noticeContents[s].trim(), s))));
                   setNoticeContents({});
                   setNotices(await fetchAllClassNotices());
                 } catch { alert('등록에 실패했습니다.'); }

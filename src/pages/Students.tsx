@@ -54,9 +54,9 @@ function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => v
 
 type Tab = 'roster' | 'weekly' | 'schedule' | 'notices';
 
-function NoticesTab({ classes, noticeClass, setNoticeClass, noticeContents, setNoticeContents, noticeSaving, setNoticeSaving, notices, setNotices }: {
+function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, setNoticeContents, noticeSaving, setNoticeSaving, notices, setNotices }: {
   classes: string[];
-  noticeClass: string; setNoticeClass: (v: string) => void;
+  noticeClasses: Set<string>; setNoticeClasses: React.Dispatch<React.SetStateAction<Set<string>>>;
   noticeContents: Record<string, string>; setNoticeContents: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   noticeSaving: boolean; setNoticeSaving: (v: boolean) => void;
   notices: ClassNotice[]; setNotices: React.Dispatch<React.SetStateAction<ClassNotice[]>>;
@@ -78,10 +78,21 @@ function NoticesTab({ classes, noticeClass, setNoticeClass, noticeContents, setN
       {/* 새 알림 작성 */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
         <p className="text-sm font-semibold text-slate-700">알림 작성</p>
-        <select value={noticeClass} onChange={e => setNoticeClass(e.target.value)}
-          className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
-          {classes.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        {/* 반 선택 (다중) */}
+        <div className="flex flex-wrap gap-1.5">
+          {classes.map(c => {
+            const on = noticeClasses.has(c);
+            return (
+              <button key={c} type="button" onClick={() => setNoticeClasses(prev => {
+                const next = new Set(prev); on ? next.delete(c) : next.add(c); return next;
+              })} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}>
+                {on && '✓ '}{c}
+              </button>
+            );
+          })}
+        </div>
         <div className="space-y-1.5">
           {([
             ['국어/역사', 'text-blue-700 bg-blue-50 border-blue-200', 'focus:ring-blue-300 border-blue-200'],
@@ -102,13 +113,14 @@ function NoticesTab({ classes, noticeClass, setNoticeClass, noticeContents, setN
           ))}
         </div>
         <button
-          disabled={!noticeClass || NOTICE_SUBJECTS.every(s => !noticeContents[s]?.trim()) || noticeSaving}
+          disabled={noticeClasses.size === 0 || NOTICE_SUBJECTS.every(s => !noticeContents[s]?.trim()) || noticeSaving}
           onClick={async () => {
             const entries = NOTICE_SUBJECTS.filter(s => noticeContents[s]?.trim());
-            if (!noticeClass || entries.length === 0) return;
+            const selectedClasses = [...noticeClasses];
+            if (selectedClasses.length === 0 || entries.length === 0) return;
             setNoticeSaving(true);
             try {
-              await Promise.all(entries.map(s => addClassNotice(noticeClass, noticeContents[s].trim(), s)));
+              await Promise.all(selectedClasses.flatMap(cls => entries.map(s => addClassNotice(cls, noticeContents[s].trim(), s))));
               setNoticeContents({});
               setNotices(await fetchAllClassNotices());
             } finally { setNoticeSaving(false); }
@@ -205,7 +217,7 @@ export default function Students() {
   const [specialTimeInput, setSpecialTimeInput] = useState('');
   const [specialClassesInput, setSpecialClassesInput] = useState<Set<string>>(new Set());
   const [notices, setNotices] = useState<ClassNotice[]>([]);
-  const [noticeClass, setNoticeClass] = useState('');
+  const [noticeClasses, setNoticeClasses] = useState<Set<string>>(new Set());
   const [noticeContents, setNoticeContents] = useState<Record<string, string>>({});
   const [noticeSaving, setNoticeSaving] = useState(false);
 
@@ -247,7 +259,7 @@ export default function Students() {
       setScheduleEdits(edits);
       if (wl.length > 0) setSelectedListId(wl[0].id);
       const classes = sortClasses([...new Set(s.map(x => x.className).filter(Boolean))]);
-      if (classes.length > 0) { setSelectedWeeklyClass(classes[0]); setNoticeClass(classes[0]); }
+      if (classes.length > 0) setSelectedWeeklyClass(classes[0]);
       setLoading(false);
     });
     fetchAllClassNotices().then(setNotices);
@@ -1017,7 +1029,7 @@ export default function Students() {
       {/* ── 알림장 탭 ── */}
       {tab === 'notices' && <NoticesTab
         classes={classes}
-        noticeClass={noticeClass} setNoticeClass={setNoticeClass}
+        noticeClasses={noticeClasses} setNoticeClasses={setNoticeClasses}
         noticeContents={noticeContents} setNoticeContents={setNoticeContents}
         noticeSaving={noticeSaving} setNoticeSaving={setNoticeSaving}
         notices={notices} setNotices={setNotices}
