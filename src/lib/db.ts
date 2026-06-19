@@ -613,35 +613,47 @@ export interface ClassNotice {
   createdAt: string;
 }
 
+function kstTodayRange() {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return {
+    start: new Date(d + 'T00:00:00+09:00').toISOString(),
+    end:   new Date(d + 'T23:59:59+09:00').toISOString(),
+  };
+}
+
+function mapNotice(r: Record<string, unknown>): ClassNotice {
+  return {
+    id: r.id as string,
+    className: r.class_name as string,
+    content: r.content as string,
+    subject: (r.subject as string) || undefined,
+    createdAt: r.created_at as string,
+  };
+}
+
 export async function fetchClassNotices(className: string): Promise<ClassNotice[]> {
+  const { start, end } = kstTodayRange();
   const { data, error } = await supabase
     .from('class_notices')
     .select('*')
     .eq('class_name', className)
+    .gte('created_at', start)
+    .lte('created_at', end)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map(r => ({
-    id: r.id as string,
-    className: r.class_name as string,
-    content: r.content as string,
-    subject: (r.subject as string) || undefined,
-    createdAt: r.created_at as string,
-  }));
+  return (data ?? []).map(mapNotice);
 }
 
 export async function fetchAllClassNotices(): Promise<ClassNotice[]> {
+  const { start, end } = kstTodayRange();
   const { data, error } = await supabase
     .from('class_notices')
     .select('*')
+    .gte('created_at', start)
+    .lte('created_at', end)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map(r => ({
-    id: r.id as string,
-    className: r.class_name as string,
-    content: r.content as string,
-    subject: (r.subject as string) || undefined,
-    createdAt: r.created_at as string,
-  }));
+  return (data ?? []).map(mapNotice);
 }
 
 export async function addClassNotice(className: string, content: string, subject?: string): Promise<void> {
