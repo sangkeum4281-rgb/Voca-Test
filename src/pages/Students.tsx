@@ -75,8 +75,7 @@ export default function Students() {
   const [specialClassesInput, setSpecialClassesInput] = useState<Set<string>>(new Set());
   const [notices, setNotices] = useState<ClassNotice[]>([]);
   const [noticeClass, setNoticeClass] = useState('');
-  const [noticeSubject, setNoticeSubject] = useState('');
-  const [noticeContent, setNoticeContent] = useState('');
+  const [noticeContents, setNoticeContents] = useState<Record<string, string>>({});
   const [noticeSaving, setNoticeSaving] = useState(false);
 
   const downloadQR = async () => {
@@ -900,34 +899,30 @@ export default function Students() {
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-2">
               {NOTICE_SUBJECTS.map(s => (
-                <button key={s} type="button" onClick={() => setNoticeSubject(prev => prev === s ? '' : s)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                    noticeSubject === s ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'
-                  }`}>
-                  {s}
-                </button>
+                <div key={s} className="flex gap-2 items-start">
+                  <span className="w-20 shrink-0 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-2 rounded-lg text-center">{s}</span>
+                  <textarea
+                    value={noticeContents[s] ?? ''}
+                    onChange={e => setNoticeContents(prev => ({ ...prev, [s]: e.target.value }))}
+                    placeholder={`${s} 숙제·시험 안내`}
+                    rows={2}
+                    className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
               ))}
             </div>
-            <textarea
-              value={noticeContent}
-              onChange={e => setNoticeContent(e.target.value)}
-              placeholder="학부모에게 전달할 내용을 입력하세요 (숙제, 시험 안내 등)"
-              rows={3}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-            />
             <button
-              disabled={!noticeContent.trim() || !noticeClass || noticeSaving}
+              disabled={!noticeClass || NOTICE_SUBJECTS.every(s => !noticeContents[s]?.trim()) || noticeSaving}
               onClick={async () => {
-                if (!noticeContent.trim() || !noticeClass) return;
+                const entries = NOTICE_SUBJECTS.filter(s => noticeContents[s]?.trim());
+                if (!noticeClass || entries.length === 0) return;
                 setNoticeSaving(true);
                 try {
-                  await addClassNotice(noticeClass, noticeContent.trim(), noticeSubject || undefined);
-                  setNoticeContent('');
-                  setNoticeSubject('');
-                  const updated = await fetchAllClassNotices();
-                  setNotices(updated);
+                  await Promise.all(entries.map(s => addClassNotice(noticeClass, noticeContents[s].trim(), s)));
+                  setNoticeContents({});
+                  setNotices(await fetchAllClassNotices());
                 } finally { setNoticeSaving(false); }
               }}
               className="w-full py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-2"
