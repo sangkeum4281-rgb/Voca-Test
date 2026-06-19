@@ -124,7 +124,12 @@ export default function Parent() {
                 {notices.map(n => (
                   <div key={n.id} className="bg-white rounded-lg border border-amber-100 px-3 py-2.5">
                     {n.subject && (
-                      <span className="inline-block text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full mb-1.5">{n.subject}</span>
+                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1.5 ${{
+                        '국어/역사': 'text-blue-700 bg-blue-100',
+                        '수학': 'text-green-700 bg-green-100',
+                        '영어': 'text-violet-700 bg-violet-100',
+                        '과학/사회': 'text-orange-700 bg-orange-100',
+                      }[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
                     )}
                     <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
                     <p className="text-xs text-slate-400 mt-1">

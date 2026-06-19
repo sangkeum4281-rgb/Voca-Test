@@ -900,15 +900,20 @@ export default function Students() {
               ))}
             </div>
             <div className="space-y-2">
-              {NOTICE_SUBJECTS.map(s => (
+              {([
+                ['국어/역사', 'text-blue-700 bg-blue-50 border-blue-200', 'focus:ring-blue-400'],
+                ['수학',     'text-green-700 bg-green-50 border-green-200', 'focus:ring-green-400'],
+                ['영어',     'text-violet-700 bg-violet-50 border-violet-200', 'focus:ring-violet-400'],
+                ['과학/사회','text-orange-700 bg-orange-50 border-orange-200', 'focus:ring-orange-400'],
+              ] as const).map(([s, badge, ring]) => (
                 <div key={s} className="flex gap-2 items-start">
-                  <span className="w-20 shrink-0 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-2 rounded-lg text-center">{s}</span>
+                  <span className={`w-20 shrink-0 text-xs font-semibold border px-2 py-2 rounded-lg text-center ${badge}`}>{s}</span>
                   <textarea
                     value={noticeContents[s] ?? ''}
                     onChange={e => setNoticeContents(prev => ({ ...prev, [s]: e.target.value }))}
                     placeholder={`${s} 숙제·시험 안내`}
                     rows={2}
-                    className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className={`flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 ${ring}`}
                   />
                 </div>
               ))}
@@ -942,7 +947,12 @@ export default function Students() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n.className}</span>
-                      {n.subject && <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">{n.subject}</span>}
+                      {n.subject && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${{
+                        '국어/역사': 'text-blue-700 bg-blue-100',
+                        '수학': 'text-green-700 bg-green-100',
+                        '영어': 'text-violet-700 bg-violet-100',
+                        '과학/사회': 'text-orange-700 bg-orange-100',
+                      }[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>}
                       <span className="text-xs text-slate-400">
                         {new Date(n.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' })}
                       </span>
