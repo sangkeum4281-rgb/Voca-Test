@@ -115,32 +115,47 @@ export default function Parent() {
             </div>
 
             {/* ── 알림장 ── */}
-            {notices.length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <Bell size={15} className="text-amber-600" />
-                  <h2 className="font-semibold text-amber-800 text-sm">알림장</h2>
-                </div>
-                {notices.map(n => (
-                  <div key={n.id} className="bg-white rounded-lg border border-amber-100 px-3 py-2.5">
-                    {n.subject && (
-                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1.5 ${{
-                        '국어/역사': 'text-blue-700 bg-blue-100',
-                        '수학': 'text-green-700 bg-green-100',
-                        '영어': 'text-violet-700 bg-violet-100',
-                        '과학/사회': 'text-orange-700 bg-orange-100',
-                      }[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
-                    )}
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {new Date(n.createdAt).toLocaleDateString('ko-KR', {
-                        month: 'long', day: 'numeric', timeZone: 'Asia/Seoul',
-                      })}
-                    </p>
+            {notices.length > 0 && (() => {
+              const SUBJECT_COLORS: Record<string, string> = {
+                '국어/역사': 'text-blue-700 bg-blue-100',
+                '수학': 'text-green-700 bg-green-100',
+                '영어': 'text-violet-700 bg-violet-100',
+                '과학/사회': 'text-orange-700 bg-orange-100',
+              };
+              const groups = notices.reduce<Record<string, typeof notices>>((acc, n) => {
+                const d = new Date(n.createdAt).toLocaleDateString('ko-KR', {
+                  year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Seoul',
+                });
+                (acc[d] ??= []).push(n);
+                return acc;
+              }, {});
+              return (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Bell size={15} className="text-amber-600" />
+                    <h2 className="font-semibold text-amber-800 text-sm">알림장</h2>
                   </div>
-                ))}
-              </div>
-            )}
+                  {Object.entries(groups).map(([date, dateNotices]) => (
+                    <div key={date}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-bold text-amber-700">{date}</span>
+                        <div className="flex-1 h-px bg-amber-200" />
+                      </div>
+                      <div className="space-y-2">
+                        {dateNotices.map(n => (
+                          <div key={n.id} className="bg-white rounded-lg border border-amber-100 px-3 py-2.5">
+                            {n.subject && (
+                              <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1.5 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
+                            )}
+                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* ── 월별 출결 ── */}
             <div className="space-y-3">

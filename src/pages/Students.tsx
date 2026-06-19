@@ -937,38 +937,55 @@ export default function Students() {
             </button>
           </div>
 
-          {/* 등록된 알림 목록 */}
+          {/* 등록된 알림 목록 — 날짜별 그룹 */}
           {notices.length === 0 ? (
             <p className="text-center text-slate-400 text-sm py-6">등록된 알림이 없습니다</p>
-          ) : (
-            <div className="space-y-2">
-              {notices.map(n => (
-                <div key={n.id} className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n.className}</span>
-                      {n.subject && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${{
-                        '국어/역사': 'text-blue-700 bg-blue-100',
-                        '수학': 'text-green-700 bg-green-100',
-                        '영어': 'text-violet-700 bg-violet-100',
-                        '과학/사회': 'text-orange-700 bg-orange-100',
-                      }[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>}
-                      <span className="text-xs text-slate-400">
-                        {new Date(n.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' })}
-                      </span>
+          ) : (() => {
+            const SUBJECT_COLORS: Record<string, string> = {
+              '국어/역사': 'text-blue-700 bg-blue-100',
+              '수학': 'text-green-700 bg-green-100',
+              '영어': 'text-violet-700 bg-violet-100',
+              '과학/사회': 'text-orange-700 bg-orange-100',
+            };
+            const groups = notices.reduce<Record<string, ClassNotice[]>>((acc, n) => {
+              const d = new Date(n.createdAt).toLocaleDateString('ko-KR', {
+                year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Seoul',
+              });
+              (acc[d] ??= []).push(n);
+              return acc;
+            }, {});
+            return (
+              <div className="space-y-5">
+                {Object.entries(groups).map(([date, dateNotices]) => (
+                  <div key={date}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-slate-500">{date}</span>
+                      <div className="flex-1 h-px bg-slate-200" />
                     </div>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
+                    <div className="space-y-2">
+                      {dateNotices.map(n => (
+                        <div key={n.id} className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n.className}</span>
+                              {n.subject && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>}
+                            </div>
+                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
+                          </div>
+                          <button onClick={async () => {
+                            await deleteClassNotice(n.id);
+                            setNotices(prev => prev.filter(x => x.id !== n.id));
+                          }} className="shrink-0 text-slate-300 hover:text-red-400 transition-colors">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <button onClick={async () => {
-                    await deleteClassNotice(n.id);
-                    setNotices(prev => prev.filter(x => x.id !== n.id));
-                  }} className="shrink-0 text-slate-300 hover:text-red-400 transition-colors">
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
