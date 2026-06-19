@@ -176,6 +176,9 @@ export default function Home() {
           <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
             <Bell size={16} className="text-amber-500" />
             <h2 className="font-semibold text-slate-700">알림장</h2>
+            <span className="text-xs text-slate-400 ml-auto">
+              {new Date(Date.now() + 9 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' })}
+            </span>
           </div>
           <div className="px-5 py-4 space-y-3">
             {/* 반 선택 */}

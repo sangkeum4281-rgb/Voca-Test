@@ -120,6 +120,9 @@ export default function Parent() {
                 <div className="flex items-center gap-2 mb-1">
                   <Bell size={15} className="text-amber-600" />
                   <h2 className="font-semibold text-amber-800 text-sm">오늘 알림장</h2>
+                  <span className="text-xs text-amber-600 ml-auto">
+                    {new Date(Date.now() + 9 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' })}
+                  </span>
                 </div>
                 {notices.map(n => {
                   const SUBJECT_COLORS: Record<string, string> = {

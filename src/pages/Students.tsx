@@ -938,6 +938,12 @@ export default function Students() {
           </div>
 
           {/* 오늘 등록된 알림 목록 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500">
+              {new Date(Date.now() + 9 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' })}
+            </span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
           {notices.length === 0 ? (
             <p className="text-center text-slate-400 text-sm py-6">오늘 등록된 알림이 없습니다</p>
           ) : (
