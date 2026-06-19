@@ -3,7 +3,12 @@
     "allow": [
       "Bash(git -C /Users/gimtaeheon/vocab-quiz add -A)",
       "Bash(git -C /Users/gimtaeheon/vocab-quiz commit -m ' *)",
-      "WebFetch(domain:smartsms.aligo.in)"
+      "WebFetch(domain:smartsms.aligo.in)",
+      "Bash(git -C /Users/gimtaeheon/vocab-quiz add api/send-sms.ts)",
+      "WebFetch(domain:usefixie.com)",
+      "Bash(git -C /Users/gimtaeheon/vocab-quiz add api/send-sms.ts api/auto-absent.ts)",
+      "Bash(npx vercel *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

@@ -182,32 +182,26 @@ export default function Home() {
           </div>
           <div className="px-5 py-4 space-y-3">
             {/* 반 선택 */}
-            <div className="flex flex-wrap gap-2">
-              {classes.map(c => (
-                <button key={c} onClick={() => setNoticeClass(c)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                    noticeClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-                  }`}>
-                  {c}
-                </button>
-              ))}
-            </div>
-            {/* 과목별 textarea */}
-            <div className="space-y-2">
+            <select value={noticeClass} onChange={e => setNoticeClass(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer">
+              {classes.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {/* 과목별 입력 */}
+            <div className="space-y-1.5">
               {([
-                ['국어/역사', 'text-blue-700 bg-blue-50 border-blue-200', 'focus:ring-blue-400'],
-                ['수학',     'text-green-700 bg-green-50 border-green-200', 'focus:ring-green-400'],
-                ['영어',     'text-violet-700 bg-violet-50 border-violet-200', 'focus:ring-violet-400'],
-                ['과학/사회','text-orange-700 bg-orange-50 border-orange-200', 'focus:ring-orange-400'],
+                ['국어/역사', 'text-blue-700 bg-blue-50 border-blue-200', 'focus:ring-blue-300 border-blue-200'],
+                ['수학',      'text-green-700 bg-green-50 border-green-200', 'focus:ring-green-300 border-green-200'],
+                ['영어',      'text-violet-700 bg-violet-50 border-violet-200', 'focus:ring-violet-300 border-violet-200'],
+                ['과학/사회', 'text-orange-700 bg-orange-50 border-orange-200', 'focus:ring-orange-300 border-orange-200'],
               ] as const).map(([s, badge, ring]) => (
-                <div key={s} className="flex gap-2 items-start">
-                  <span className={`w-20 shrink-0 text-xs font-semibold border px-2 py-2 rounded-lg text-center ${badge}`}>{s}</span>
-                  <textarea
+                <div key={s} className="flex gap-2 items-center">
+                  <span className={`w-[72px] shrink-0 text-xs font-bold border px-1.5 py-1.5 rounded-lg text-center leading-tight ${badge}`}>{s}</span>
+                  <input
+                    type="text"
                     value={noticeContents[s] ?? ''}
                     onChange={e => setNoticeContents(prev => ({ ...prev, [s]: e.target.value }))}
-                    placeholder={`${s} 숙제·시험 안내`}
-                    rows={2}
-                    className={`flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 ${ring}`}
+                    placeholder="숙제·시험 안내"
+                    className={`flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white ${ring}`}
                   />
                 </div>
               ))}

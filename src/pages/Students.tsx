@@ -9,13 +9,144 @@ import {
   getSmsTestPhone, setSmsTestPhone, getSpecialDates, setSpecialDates,
   getCheckinTimeBypassed, setCheckinTimeBypassUntil,
   fetchAllClassNotices, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS, sortClasses,
+  setNoticeOrder,
   type Student, type AttendanceRecord, type ClassSchedule, type ClassNotice,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical } from 'lucide-react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+const SUBJECT_COLORS: Record<string, string> = {
+  '국어/역사': 'text-blue-700 bg-blue-100',
+  '수학': 'text-green-700 bg-green-100',
+  '영어': 'text-violet-700 bg-violet-100',
+  '과학/사회': 'text-orange-700 bg-orange-100',
+};
+
+function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: n.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="bg-white rounded-xl border border-slate-200 px-3 py-3 flex gap-2 items-start"
+    >
+      <button {...attributes} {...listeners} className="shrink-0 text-slate-300 hover:text-slate-400 cursor-grab active:cursor-grabbing pt-0.5 touch-none">
+        <GripVertical size={15} />
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+          <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n.className}</span>
+          {n.subject && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>}
+        </div>
+        <p className="text-sm text-slate-700">{n.content}</p>
+      </div>
+      <button onClick={onDelete} className="shrink-0 text-slate-300 hover:text-red-400 transition-colors pt-0.5">
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+}
 
 type Tab = 'roster' | 'weekly' | 'schedule' | 'notices';
+
+function NoticesTab({ classes, noticeClass, setNoticeClass, noticeContents, setNoticeContents, noticeSaving, setNoticeSaving, notices, setNotices }: {
+  classes: string[];
+  noticeClass: string; setNoticeClass: (v: string) => void;
+  noticeContents: Record<string, string>; setNoticeContents: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  noticeSaving: boolean; setNoticeSaving: (v: boolean) => void;
+  notices: ClassNotice[]; setNotices: React.Dispatch<React.SetStateAction<ClassNotice[]>>;
+}) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = notices.findIndex(n => n.id === active.id);
+    const newIdx = notices.findIndex(n => n.id === over.id);
+    const reordered = arrayMove(notices, oldIdx, newIdx);
+    setNotices(reordered);
+    await setNoticeOrder(reordered.map(n => n.id));
+  };
+
+  return (
+    <div className="space-y-4 max-w-lg">
+      {/* 새 알림 작성 */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+        <p className="text-sm font-semibold text-slate-700">알림 작성</p>
+        <select value={noticeClass} onChange={e => setNoticeClass(e.target.value)}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+          {classes.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="space-y-1.5">
+          {([
+            ['국어/역사', 'text-blue-700 bg-blue-50 border-blue-200', 'focus:ring-blue-300 border-blue-200'],
+            ['수학',      'text-green-700 bg-green-50 border-green-200', 'focus:ring-green-300 border-green-200'],
+            ['영어',      'text-violet-700 bg-violet-50 border-violet-200', 'focus:ring-violet-300 border-violet-200'],
+            ['과학/사회', 'text-orange-700 bg-orange-50 border-orange-200', 'focus:ring-orange-300 border-orange-200'],
+          ] as const).map(([s, badge, ring]) => (
+            <div key={s} className="flex gap-2 items-center">
+              <span className={`w-[72px] shrink-0 text-xs font-bold border px-1.5 py-2 rounded-lg text-center leading-tight ${badge}`}>{s}</span>
+              <input
+                type="text"
+                value={noticeContents[s] ?? ''}
+                onChange={e => setNoticeContents(prev => ({ ...prev, [s]: e.target.value }))}
+                placeholder="숙제·시험 안내"
+                className={`flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white ${ring}`}
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          disabled={!noticeClass || NOTICE_SUBJECTS.every(s => !noticeContents[s]?.trim()) || noticeSaving}
+          onClick={async () => {
+            const entries = NOTICE_SUBJECTS.filter(s => noticeContents[s]?.trim());
+            if (!noticeClass || entries.length === 0) return;
+            setNoticeSaving(true);
+            try {
+              await Promise.all(entries.map(s => addClassNotice(noticeClass, noticeContents[s].trim(), s)));
+              setNoticeContents({});
+              setNotices(await fetchAllClassNotices());
+            } finally { setNoticeSaving(false); }
+          }}
+          className="w-full py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-2"
+        >
+          {noticeSaving ? <Loader size={14} className="animate-spin" /> : <Bell size={14} />}
+          알림 등록
+        </button>
+      </div>
+
+      {/* 오늘 등록된 알림 목록 */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold text-slate-500">
+          {new Date(Date.now() + 9 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' })}
+        </span>
+        <div className="flex-1 h-px bg-slate-200" />
+        {notices.length > 0 && <span className="text-xs text-slate-400">드래그로 순서 변경</span>}
+      </div>
+      {notices.length === 0 ? (
+        <p className="text-center text-slate-400 text-sm py-6">오늘 등록된 알림이 없습니다</p>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={notices.map(n => n.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {notices.map(n => (
+                <SortableNoticeItem key={n.id} n={n} onDelete={async () => {
+                  await deleteClassNotice(n.id);
+                  setNotices(prev => prev.filter(x => x.id !== n.id));
+                }} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+    </div>
+  );
+}
 
 const REQUIRED: TestType[] = ['multiple-choice-en', 'multiple-choice-kr', 'fill-blank', 'spelling'];
 const REQUIRED_LABELS: Record<string, string> = {
@@ -884,99 +1015,13 @@ export default function Students() {
         </div>
       )}
       {/* ── 알림장 탭 ── */}
-      {tab === 'notices' && (
-        <div className="space-y-4 max-w-lg">
-          {/* 새 알림 작성 */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-            <p className="text-sm font-semibold text-slate-700">알림 작성</p>
-            <div className="flex flex-wrap gap-2">
-              {classes.map(c => (
-                <button key={c} onClick={() => setNoticeClass(c)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                    noticeClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-                  }`}>
-                  {c}
-                </button>
-              ))}
-            </div>
-            <div className="space-y-2">
-              {([
-                ['국어/역사', 'text-blue-700 bg-blue-50 border-blue-200', 'focus:ring-blue-400'],
-                ['수학',     'text-green-700 bg-green-50 border-green-200', 'focus:ring-green-400'],
-                ['영어',     'text-violet-700 bg-violet-50 border-violet-200', 'focus:ring-violet-400'],
-                ['과학/사회','text-orange-700 bg-orange-50 border-orange-200', 'focus:ring-orange-400'],
-              ] as const).map(([s, badge, ring]) => (
-                <div key={s} className="flex gap-2 items-start">
-                  <span className={`w-20 shrink-0 text-xs font-semibold border px-2 py-2 rounded-lg text-center ${badge}`}>{s}</span>
-                  <textarea
-                    value={noticeContents[s] ?? ''}
-                    onChange={e => setNoticeContents(prev => ({ ...prev, [s]: e.target.value }))}
-                    placeholder={`${s} 숙제·시험 안내`}
-                    rows={2}
-                    className={`flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 ${ring}`}
-                  />
-                </div>
-              ))}
-            </div>
-            <button
-              disabled={!noticeClass || NOTICE_SUBJECTS.every(s => !noticeContents[s]?.trim()) || noticeSaving}
-              onClick={async () => {
-                const entries = NOTICE_SUBJECTS.filter(s => noticeContents[s]?.trim());
-                if (!noticeClass || entries.length === 0) return;
-                setNoticeSaving(true);
-                try {
-                  await Promise.all(entries.map(s => addClassNotice(noticeClass, noticeContents[s].trim(), s)));
-                  setNoticeContents({});
-                  setNotices(await fetchAllClassNotices());
-                } finally { setNoticeSaving(false); }
-              }}
-              className="w-full py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              {noticeSaving ? <Loader size={14} className="animate-spin" /> : <Bell size={14} />}
-              알림 등록
-            </button>
-          </div>
-
-          {/* 오늘 등록된 알림 목록 */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500">
-              {new Date(Date.now() + 9 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' })}
-            </span>
-            <div className="flex-1 h-px bg-slate-200" />
-          </div>
-          {notices.length === 0 ? (
-            <p className="text-center text-slate-400 text-sm py-6">오늘 등록된 알림이 없습니다</p>
-          ) : (
-            <div className="space-y-2">
-              {notices.map(n => {
-                const SUBJECT_COLORS: Record<string, string> = {
-                  '국어/역사': 'text-blue-700 bg-blue-100',
-                  '수학': 'text-green-700 bg-green-100',
-                  '영어': 'text-violet-700 bg-violet-100',
-                  '과학/사회': 'text-orange-700 bg-orange-100',
-                };
-                return (
-                  <div key={n.id} className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n.className}</span>
-                        {n.subject && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>}
-                      </div>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
-                    </div>
-                    <button onClick={async () => {
-                      await deleteClassNotice(n.id);
-                      setNotices(prev => prev.filter(x => x.id !== n.id));
-                    }} className="shrink-0 text-slate-300 hover:text-red-400 transition-colors">
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      {tab === 'notices' && <NoticesTab
+        classes={classes}
+        noticeClass={noticeClass} setNoticeClass={setNoticeClass}
+        noticeContents={noticeContents} setNoticeContents={setNoticeContents}
+        noticeSaving={noticeSaving} setNoticeSaving={setNoticeSaving}
+        notices={notices} setNotices={setNotices}
+      />}
     </div>
       {smsMode && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-50">

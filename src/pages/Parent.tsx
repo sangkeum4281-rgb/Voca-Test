@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchStudents, fetchAttendanceByMonth, fetchClassNotices, type ClassNotice } from '../lib/db';
+import { fetchStudents, fetchAttendanceByMonth, fetchClassNotices, getNoticeOrder, type ClassNotice } from '../lib/db';
 import { ChevronLeft, ChevronRight, Loader, CalendarDays, Bell } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -41,17 +41,25 @@ export default function Parent() {
       if (!student) { setNotFound(true); setLoading(false); return; }
 
       setClassName(student.className ?? '');
-      const [att, nts] = await Promise.all([
+      const [att, nts, order] = await Promise.all([
         fetchAttendanceByMonth(y, m),
         student.className ? fetchClassNotices(student.className) : Promise.resolve([]),
+        getNoticeOrder(),
       ]);
+      const orderedNts = order.length > 0
+        ? [...nts].sort((a, b) => {
+            const ai = order.indexOf(a.id);
+            const bi = order.indexOf(b.id);
+            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+          })
+        : nts;
 
       const map: Record<number, Status> = {};
       for (const r of att.filter(r => r.studentName === name.trim())) {
         map[parseInt(r.date.slice(8, 10))] = r.status as Status;
       }
       setAttMap(map);
-      setNotices(nts);
+      setNotices(orderedNts);
     } finally {
       setLoading(false);
     }

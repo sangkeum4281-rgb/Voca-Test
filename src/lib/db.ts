@@ -681,6 +681,20 @@ export async function deleteClassNotice(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function getNoticeOrder(): Promise<string[]> {
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { data } = await supabase.from('school_settings').select('value').eq('key', `notice_order_${today}`).single();
+  try { return data?.value ? JSON.parse(data.value) : []; } catch { return []; }
+}
+
+export async function setNoticeOrder(ids: string[]): Promise<void> {
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await supabase.from('school_settings').upsert(
+    { key: `notice_order_${today}`, value: JSON.stringify(ids) },
+    { onConflict: 'key' }
+  );
+}
+
 // ── Q&A ──────────────────────────────────────────────────
 
 export interface QnaItem {
