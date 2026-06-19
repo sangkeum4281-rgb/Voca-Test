@@ -5,7 +5,7 @@ import {
   fetchAttendanceByDate, fetchStudents,
   getAutoAbsentSms, sendAligoBulkSms, autoMarkAbsent,
   fetchAllClassNotices, addClassNotice,
-  NOTICE_SUBJECTS,
+  NOTICE_SUBJECTS, sortClasses,
   type Announcement, type QnaItem, type AttendanceRecord, type Student, type ClassNotice,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -48,7 +48,7 @@ export default function Home() {
       setTodayAtt(att);
       setStudents(stu as Student[]);
       setNotices(nts as ClassNotice[]);
-      const classes = [...new Set((stu as Student[]).map(s => s.className).filter(Boolean))].sort();
+      const classes = sortClasses([...new Set((stu as Student[]).map(s => s.className).filter(Boolean))]);
       if (classes.length > 0) setNoticeClass(classes[0]);
       setLoading(false);
     });
@@ -96,7 +96,7 @@ export default function Home() {
   };
 
   // 반별 결석·지각자 그룹
-  const classes = [...new Set(students.map(s => s.className).filter(Boolean))].sort();
+  const classes = sortClasses([...new Set(students.map(s => s.className).filter(Boolean))]);
   const absentByClass = classes.map(cls => {
     const classStudents = students.filter(s => s.className === cls);
     const absentNames = classStudents

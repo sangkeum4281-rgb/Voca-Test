@@ -8,7 +8,7 @@ import {
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
   getSmsTestPhone, setSmsTestPhone, getSpecialDates, setSpecialDates,
   getCheckinTimeBypassed, setCheckinTimeBypassUntil,
-  fetchAllClassNotices, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS,
+  fetchAllClassNotices, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS, sortClasses,
   type Student, type AttendanceRecord, type ClassSchedule, type ClassNotice,
 } from '../lib/db';
 import type { WordList } from '../types';
@@ -115,7 +115,7 @@ export default function Students() {
       sch.forEach(sc => { edits[sc.gradeKey] = sc.startTime; });
       setScheduleEdits(edits);
       if (wl.length > 0) setSelectedListId(wl[0].id);
-      const classes = [...new Set(s.map(x => x.className).filter(Boolean))].sort();
+      const classes = sortClasses([...new Set(s.map(x => x.className).filter(Boolean))]);
       if (classes.length > 0) { setSelectedWeeklyClass(classes[0]); setNoticeClass(classes[0]); }
       setLoading(false);
     });
@@ -227,7 +227,7 @@ export default function Students() {
     return <div className="flex items-center justify-center py-24"><Loader size={28} className="animate-spin text-indigo-400" /></div>;
   }
 
-  const classes = [...new Set(students.map(s => s.className).filter(Boolean))].sort();
+  const classes = sortClasses([...new Set(students.map(s => s.className).filter(Boolean))]);
 
   // 선택된 반으로 필터
   const filteredStatus = selectedWeeklyClass
@@ -417,7 +417,7 @@ export default function Students() {
             </div>
           ) : (
             <div className="space-y-3">
-              {[...new Set(students.map(s => s.className))].sort().map(cls => {
+              {sortClasses([...new Set(students.map(s => s.className).filter(Boolean))]).map(cls => {
                 const inClass = students.filter(s => s.className === cls);
                 const collapsed = collapsedClasses.has(cls);
                 return (

@@ -224,6 +224,16 @@ export interface Student {
 
 const isHighSchool = (cls: string) => /고등|고교|고\s*\d*\s*학년/.test(cls);
 
+export function sortClasses(classes: string[]): string[] {
+  return [...classes].sort((a, b) => {
+    const levelDiff = (isHighSchool(a) ? 1 : 0) - (isHighSchool(b) ? 1 : 0);
+    if (levelDiff !== 0) return levelDiff;
+    const ga = parseInt(a.match(/(\d+)학년/)?.[1] ?? '9');
+    const gb = parseInt(b.match(/(\d+)학년/)?.[1] ?? '9');
+    return ga - gb;
+  });
+}
+
 function sortStudents(students: Student[]): Student[] {
   return [...students].sort((a, b) => {
     // 중학교 먼저, 고등학교 아래
