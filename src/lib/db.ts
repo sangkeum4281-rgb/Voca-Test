@@ -695,6 +695,48 @@ export async function setNoticeOrder(ids: string[]): Promise<void> {
   );
 }
 
+// ── parent messages (선생님께 한마디) ──────────────────────
+
+export interface ParentMessage {
+  id: string;
+  studentName: string;
+  className: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export async function addParentMessage(studentName: string, className: string, message: string): Promise<void> {
+  const { error } = await supabase
+    .from('parent_messages')
+    .insert({ student_name: studentName, class_name: className, message });
+  if (error) throw error;
+}
+
+export async function fetchParentMessages(): Promise<ParentMessage[]> {
+  const { data, error } = await supabase
+    .from('parent_messages')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(r => ({
+    id: r.id as string,
+    studentName: r.student_name as string,
+    className: (r.class_name as string) ?? '',
+    message: r.message as string,
+    isRead: r.is_read as boolean,
+    createdAt: r.created_at as string,
+  }));
+}
+
+export async function markParentMessageRead(id: string): Promise<void> {
+  await supabase.from('parent_messages').update({ is_read: true }).eq('id', id);
+}
+
+export async function deleteParentMessage(id: string): Promise<void> {
+  await supabase.from('parent_messages').delete().eq('id', id);
+}
+
 // ── Q&A ──────────────────────────────────────────────────
 
 export interface QnaItem {

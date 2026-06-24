@@ -5,12 +5,13 @@ import {
   fetchAttendanceByDate, fetchStudents,
   getAutoAbsentSms, sendAligoBulkSms, autoMarkAbsent,
   fetchAllClassNotices, addClassNotice,
+  fetchParentMessages, markParentMessageRead, deleteParentMessage,
   NOTICE_SUBJECTS, sortClasses,
-  type Announcement, type QnaItem, type AttendanceRecord, type Student, type ClassNotice,
+  type Announcement, type QnaItem, type AttendanceRecord, type Student, type ClassNotice, type ParentMessage,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send, Bell } from 'lucide-react';
+import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send, Bell, MessageSquare, Trash2 } from 'lucide-react';
 
 function isWeekend() { const d = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCDay(); return d === 0 || d === 6; }
 
@@ -31,6 +32,9 @@ export default function Home() {
   const [noticeContents, setNoticeContents] = useState<Record<string, string>>({});
   const [noticeSavingHome, setNoticeSavingHome] = useState(false);
 
+  // 학부모 메시지
+  const [parentMsgs, setParentMsgs] = useState<ParentMessage[]>([]);
+
 
   const fetchAll = () => {
     const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -41,13 +45,15 @@ export default function Home() {
       fetchAttendanceByDate(today),
       fetchStudents(),
       fetchAllClassNotices(),
-    ]).then(([wl, ann, q, att, stu, nts]) => {
+      fetchParentMessages(),
+    ]).then(([wl, ann, q, att, stu, nts, msgs]) => {
       setWordLists(wl);
       setAnnouncements(ann.slice(0, 3));
       setQna(q);
       setTodayAtt(att);
       setStudents(stu as Student[]);
       setNotices(nts as ClassNotice[]);
+      setParentMsgs(msgs as ParentMessage[]);
       sortClasses([...new Set((stu as Student[]).map(s => s.className).filter(Boolean))]);
       setLoading(false);
     });
@@ -250,6 +256,53 @@ export default function Home() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 학부모 한마디 */}
+      {isTeacher && parentMsgs.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+            <MessageSquare size={16} className="text-indigo-500" />
+            <h2 className="font-semibold text-slate-700">학부모 전달사항</h2>
+            {parentMsgs.filter(m => !m.isRead).length > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
+                {parentMsgs.filter(m => !m.isRead).length}
+              </span>
+            )}
+          </div>
+          <div className="divide-y divide-slate-100">
+            {parentMsgs.map(msg => (
+              <div key={msg.id} className={`px-5 py-3 flex gap-3 items-start ${msg.isRead ? 'opacity-60' : ''}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs font-semibold text-indigo-600">{msg.studentName}</span>
+                    {msg.className && <span className="text-xs text-slate-400">{msg.className}</span>}
+                    <span className="text-xs text-slate-300 ml-auto">
+                      {new Date(msg.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{msg.message}</p>
+                </div>
+                <div className="flex flex-col gap-1 shrink-0">
+                  {!msg.isRead && (
+                    <button onClick={async () => {
+                      await markParentMessageRead(msg.id);
+                      setParentMsgs(prev => prev.map(m => m.id === msg.id ? { ...m, isRead: true } : m));
+                    }} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap">
+                      확인
+                    </button>
+                  )}
+                  <button onClick={async () => {
+                    await deleteParentMessage(msg.id);
+                    setParentMsgs(prev => prev.filter(m => m.id !== msg.id));
+                  }} className="text-slate-300 hover:text-red-400 transition-colors">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
