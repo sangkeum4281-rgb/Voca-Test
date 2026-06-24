@@ -120,9 +120,16 @@ function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, 
             if (selectedClasses.length === 0 || entries.length === 0) return;
             setNoticeSaving(true);
             try {
-              await Promise.all(selectedClasses.flatMap(cls => entries.map(s => addClassNotice(cls, noticeContents[s].trim(), s))));
+              for (const cls of selectedClasses) {
+                for (const s of entries) {
+                  await addClassNotice(cls, noticeContents[s].trim(), s);
+                }
+              }
               setNoticeContents({});
               setNotices(await fetchAllClassNotices());
+            } catch (e) {
+              console.error('알림 등록 실패:', e);
+              alert(`등록에 실패했습니다.\n${(e as Error)?.message ?? String(e)}`);
             } finally { setNoticeSaving(false); }
           }}
           className="w-full py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-2"
