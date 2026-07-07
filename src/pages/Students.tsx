@@ -84,28 +84,62 @@ function GrowthBadge({ delta, single }: { delta: number; single: boolean }) {
   );
 }
 
-// 과목별 성적 추이를 보여주는 가로 막대 그래프
+// 위쪽만 둥근 막대(컬럼) 경로 — 바닥은 각지게, 데이터 끝만 둥글게
+function roundedTopRectPath(x: number, y: number, w: number, h: number, r: number): string {
+  const rr = Math.max(0, Math.min(r, w / 2, h));
+  return `M ${x},${y + h} L ${x},${y + rr} Q ${x},${y} ${x + rr},${y} L ${x + w - rr},${y} Q ${x + w},${y} ${x + w},${y + rr} L ${x + w},${y + h} Z`;
+}
+
+// 과목별 성적 추이를 보여주는 세로 막대(컬럼) 그래프
 function SubjectTrendCard({ subject, points }: { subject: string; points: ExamScore[] }) {
   const last = points[points.length - 1];
   const delta = points.length >= 2 ? last.score - points[points.length - 2].score : 0;
 
+  const width = 280, height = 160;
+  const padL = 26, padR = 10, padT = 22, padB = 46;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+  const baseline = padT + plotH;
+  const n = points.length;
+  const slot = plotW / n;
+  const barW = Math.min(28, slot * 0.5);
+
+  const bars = points.map((p, i) => {
+    const cx = padL + slot * (i + 0.5);
+    const pct = scorePct(p);
+    const barH = (pct / 100) * plotH;
+    return { p, cx, x: cx - barW / 2, y: baseline - barH, barH };
+  });
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-3">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <p className="text-sm font-semibold text-slate-700">{subject}</p>
         <GrowthBadge delta={delta} single={points.length < 2} />
       </div>
-      <div className="space-y-1.5">
-        {points.map(p => (
-          <div key={p.id} className="flex items-center gap-2">
-            <span className="w-24 flex-shrink-0 text-xs text-slate-500 truncate" title={p.examName}>{p.examName}</span>
-            <div className="flex-1 h-3.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${scorePct(p)}%` }} />
-            </div>
-            <span className="w-8 flex-shrink-0 text-xs font-semibold text-slate-700 text-right">{p.score}</span>
-          </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+        {[0, 50, 100].map(g => {
+          const y = baseline - (g / 100) * plotH;
+          return (
+            <g key={g}>
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#e2e8f0" strokeWidth={1} />
+              <text x={padL - 6} y={y} textAnchor="end" dominantBaseline="middle" fontSize={9} fill="#94a3b8">{g}</text>
+            </g>
+          );
+        })}
+        {bars.map((b, i) => (
+          <g key={i}>
+            <path d={roundedTopRectPath(b.x, b.y, barW, b.barH, 4)} fill="#4f46e5" />
+            <text x={b.cx} y={b.y - 5} textAnchor="middle" fontSize={10} fontWeight={700} fill="#1e293b">{b.p.score}</text>
+            <text
+              x={b.cx} y={baseline + 10} textAnchor="end" fontSize={8} fill="#94a3b8"
+              transform={`rotate(-40 ${b.cx} ${baseline + 10})`}
+            >
+              {b.p.examName}
+            </text>
+          </g>
         ))}
-      </div>
+      </svg>
     </div>
   );
 }
@@ -144,21 +178,22 @@ function GradeTrend({ students, classes, scores }: { students: Student[]; classe
       const delta = points.length >= 2 ? last.score - points[points.length - 2].score : 0;
       const deltaText = points.length < 2 ? '첫 성적' : delta === 0 ? '변동없음' : `${delta > 0 ? '▲ +' : '▼ '}${delta}점`;
       const deltaColor = points.length < 2 ? '#94a3b8' : delta > 0 ? '#16a34a' : delta < 0 ? '#dc2626' : '#64748b';
-      const rows = points.map(p => `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-          <span style="width:130px;flex-shrink:0;font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.examName)}</span>
-          <div style="flex:1;height:14px;background:#f1f5f9;border-radius:7px;overflow:hidden;">
-            <div style="height:100%;width:${scorePct(p)}%;background:#4f46e5;border-radius:7px;"></div>
+      const barMaxH = 110;
+      const cols = points.map(p => `
+        <div style="display:flex;flex-direction:column;align-items:center;width:64px;flex-shrink:0;">
+          <span style="font-size:11px;font-weight:bold;color:#1e293b;margin-bottom:3px;">${p.score}</span>
+          <div style="display:flex;align-items:flex-end;height:${barMaxH}px;">
+            <div style="width:28px;background:#4f46e5;border-radius:4px 4px 0 0;height:${Math.max(2, (scorePct(p) / 100) * barMaxH)}px;"></div>
           </div>
-          <span style="width:32px;flex-shrink:0;font-size:11px;font-weight:bold;color:#1e293b;text-align:right;">${p.score}</span>
+          <span style="font-size:9px;color:#64748b;text-align:center;margin-top:4px;line-height:1.3;word-break:break-all;">${escapeHtml(p.examName)}</span>
         </div>`).join('');
       return `
-        <div style="margin-bottom:18px;break-inside:avoid;">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+        <div style="margin-bottom:22px;break-inside:avoid;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
             <h3 style="font-size:14px;font-weight:bold;color:#3730a3;margin:0;">${escapeHtml(subject)}</h3>
             <span style="font-size:11px;font-weight:bold;color:${deltaColor};">${deltaText}</span>
           </div>
-          ${rows}
+          <div style="display:flex;align-items:flex-end;gap:14px;border-bottom:1px solid #e2e8f0;padding-bottom:0;">${cols}</div>
         </div>`;
     }).join('');
 
