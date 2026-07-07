@@ -15,7 +15,7 @@ import {
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, LineChart } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, Printer } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -56,9 +56,14 @@ function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => v
 type Tab = 'roster' | 'weekly' | 'schedule' | 'notices' | 'grades';
 type GradesSubTab = 'input' | 'trend';
 
-// 성적 %(score/maxScore) 계산 — 그래프 y축 스케일 통일용
+// 성적 %(score/maxScore) 계산 — 그래프 막대 길이 스케일 통일용
 function scorePct(s: ExamScore): number {
   return Math.max(0, Math.min(100, (s.score / s.maxScore) * 100));
+}
+
+function escapeHtml(s: string): string {
+  const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return s.replace(/[&<>"']/g, c => map[c]);
 }
 
 function GrowthBadge({ delta, single }: { delta: number; single: boolean }) {
@@ -79,52 +84,28 @@ function GrowthBadge({ delta, single }: { delta: number; single: boolean }) {
   );
 }
 
-// 과목별 성적 추이를 보여주는 미니 라인 차트 (라이브러리 없이 SVG 직접 그림)
+// 과목별 성적 추이를 보여주는 가로 막대 그래프
 function SubjectTrendCard({ subject, points }: { subject: string; points: ExamScore[] }) {
-  const width = 260, height = 110;
-  const padL = 26, padR = 14, padT = 14, padB = 14;
-  const plotW = width - padL - padR;
-  const plotH = height - padT - padB;
-
-  const xFor = (i: number) => padL + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
-  const yFor = (pct: number) => padT + (1 - pct / 100) * plotH;
-
-  const coords = points.map((p, i) => ({ x: xFor(i), y: yFor(scorePct(p)), p }));
-  const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
   const last = points[points.length - 1];
   const delta = points.length >= 2 ? last.score - points[points.length - 2].score : 0;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-3">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-2">
         <p className="text-sm font-semibold text-slate-700">{subject}</p>
         <GrowthBadge delta={delta} single={points.length < 2} />
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
-        {[0, 50, 100].map(g => (
-          <g key={g}>
-            <line x1={padL} y1={yFor(g)} x2={width - padR} y2={yFor(g)} stroke="#e2e8f0" strokeWidth={1} />
-            <text x={padL - 6} y={yFor(g)} textAnchor="end" dominantBaseline="middle" fontSize={9} fill="#94a3b8">{g}</text>
-          </g>
+      <div className="space-y-1.5">
+        {points.map(p => (
+          <div key={p.id} className="flex items-center gap-2">
+            <span className="w-24 flex-shrink-0 text-xs text-slate-500 truncate" title={p.examName}>{p.examName}</span>
+            <div className="flex-1 h-3.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${scorePct(p)}%` }} />
+            </div>
+            <span className="w-8 flex-shrink-0 text-xs font-semibold text-slate-700 text-right">{p.score}</span>
+          </div>
         ))}
-        {points.length > 1 && <path d={path} fill="none" stroke="#4f46e5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />}
-        {coords.map((c, i) => (
-          <circle key={i} cx={c.x} cy={c.y} r={4} fill="#4f46e5" stroke="#fff" strokeWidth={2}>
-            <title>{`${c.p.examName}: ${c.p.score}점`}</title>
-          </circle>
-        ))}
-        <text
-          x={coords[coords.length - 1].x + 8}
-          y={coords[coords.length - 1].y}
-          dominantBaseline="middle"
-          fontSize={11}
-          fontWeight={700}
-          fill="#1e293b"
-        >
-          {last.score}
-        </text>
-      </svg>
-      <p className="text-xs text-slate-400 text-center -mt-1">최근: {last.examName}</p>
+      </div>
     </div>
   );
 }
@@ -156,6 +137,44 @@ function GradeTrend({ students, classes, scores }: { students: Student[]; classe
     }))
     .filter(s => s.points.length > 0);
 
+  const printReport = () => {
+    if (!student || subjectSeries.length === 0) return;
+    const sections = subjectSeries.map(({ subject, points }) => {
+      const last = points[points.length - 1];
+      const delta = points.length >= 2 ? last.score - points[points.length - 2].score : 0;
+      const deltaText = points.length < 2 ? '첫 성적' : delta === 0 ? '변동없음' : `${delta > 0 ? '▲ +' : '▼ '}${delta}점`;
+      const deltaColor = points.length < 2 ? '#94a3b8' : delta > 0 ? '#16a34a' : delta < 0 ? '#dc2626' : '#64748b';
+      const rows = points.map(p => `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+          <span style="width:130px;flex-shrink:0;font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.examName)}</span>
+          <div style="flex:1;height:14px;background:#f1f5f9;border-radius:7px;overflow:hidden;">
+            <div style="height:100%;width:${scorePct(p)}%;background:#4f46e5;border-radius:7px;"></div>
+          </div>
+          <span style="width:32px;flex-shrink:0;font-size:11px;font-weight:bold;color:#1e293b;text-align:right;">${p.score}</span>
+        </div>`).join('');
+      return `
+        <div style="margin-bottom:18px;break-inside:avoid;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+            <h3 style="font-size:14px;font-weight:bold;color:#3730a3;margin:0;">${escapeHtml(subject)}</h3>
+            <span style="font-size:11px;font-weight:bold;color:${deltaColor};">${deltaText}</span>
+          </div>
+          ${rows}
+        </div>`;
+    }).join('');
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(student.name)} 성적표</title>
+      <style>body{font-family:sans-serif;margin:0;padding:24px;color:#1e293b;}@media print{@page{margin:14mm;}}</style>
+      </head><body>
+        <h2 style="font-size:17px;font-weight:bold;margin-bottom:2px;">최강학원 성적 리포트</h2>
+        <p style="font-size:12px;color:#64748b;margin-bottom:18px;">${escapeHtml(student.className)} · ${escapeHtml(student.name)} · ${new Date().toLocaleDateString('ko-KR')}</p>
+        ${sections}
+        <script>window.onload=()=>window.print();</script>
+      </body></html>`);
+    win.document.close();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-1.5">
@@ -172,10 +191,16 @@ function GradeTrend({ students, classes, scores }: { students: Student[]; classe
         <p className="text-center text-slate-400 text-sm py-6">선택된 반에 학생이 없습니다</p>
       ) : (
         <>
-          <select value={studentId} onChange={e => setStudentId(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            {classStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <div className="flex gap-2">
+            <select value={studentId} onChange={e => setStudentId(e.target.value)}
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+              {classStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <button type="button" onClick={printReport} disabled={subjectSeries.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 whitespace-nowrap">
+              <Printer size={13} /> PDF로 저장
+            </button>
+          </div>
           {subjectSeries.length === 0 ? (
             <p className="text-center text-slate-400 text-sm py-6">입력된 성적이 없습니다</p>
           ) : (
@@ -252,7 +277,7 @@ function GradesTab({ students, classes }: { students: Student[]; classes: string
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
             subTab === 'trend' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}>
-          <LineChart size={13} /> 추이 그래프
+          <BarChart2 size={13} /> 추이 그래프
         </button>
       </div>
 
