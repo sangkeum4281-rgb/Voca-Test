@@ -15,7 +15,7 @@ import {
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, LineChart } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -54,8 +54,145 @@ function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => v
 }
 
 type Tab = 'roster' | 'weekly' | 'schedule' | 'notices' | 'grades';
+type GradesSubTab = 'input' | 'trend';
+
+// 성적 %(score/maxScore) 계산 — 그래프 y축 스케일 통일용
+function scorePct(s: ExamScore): number {
+  return Math.max(0, Math.min(100, (s.score / s.maxScore) * 100));
+}
+
+function GrowthBadge({ delta, single }: { delta: number; single: boolean }) {
+  if (single) {
+    return <span className="text-xs text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full flex items-center gap-1"><Minus size={11} />첫 성적</span>;
+  }
+  if (delta === 0) {
+    return <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1"><Minus size={11} />변동없음</span>;
+  }
+  const up = delta > 0;
+  return (
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+      up ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'
+    }`}>
+      {up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+      {up ? '+' : ''}{delta}점
+    </span>
+  );
+}
+
+// 과목별 성적 추이를 보여주는 미니 라인 차트 (라이브러리 없이 SVG 직접 그림)
+function SubjectTrendCard({ subject, points }: { subject: string; points: ExamScore[] }) {
+  const width = 260, height = 110;
+  const padL = 26, padR = 14, padT = 14, padB = 14;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  const xFor = (i: number) => padL + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
+  const yFor = (pct: number) => padT + (1 - pct / 100) * plotH;
+
+  const coords = points.map((p, i) => ({ x: xFor(i), y: yFor(scorePct(p)), p }));
+  const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+  const last = points[points.length - 1];
+  const delta = points.length >= 2 ? last.score - points[points.length - 2].score : 0;
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-3">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-sm font-semibold text-slate-700">{subject}</p>
+        <GrowthBadge delta={delta} single={points.length < 2} />
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+        {[0, 50, 100].map(g => (
+          <g key={g}>
+            <line x1={padL} y1={yFor(g)} x2={width - padR} y2={yFor(g)} stroke="#e2e8f0" strokeWidth={1} />
+            <text x={padL - 6} y={yFor(g)} textAnchor="end" dominantBaseline="middle" fontSize={9} fill="#94a3b8">{g}</text>
+          </g>
+        ))}
+        {points.length > 1 && <path d={path} fill="none" stroke="#4f46e5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />}
+        {coords.map((c, i) => (
+          <circle key={i} cx={c.x} cy={c.y} r={4} fill="#4f46e5" stroke="#fff" strokeWidth={2}>
+            <title>{`${c.p.examName}: ${c.p.score}점`}</title>
+          </circle>
+        ))}
+        <text
+          x={coords[coords.length - 1].x + 8}
+          y={coords[coords.length - 1].y}
+          dominantBaseline="middle"
+          fontSize={11}
+          fontWeight={700}
+          fill="#1e293b"
+        >
+          {last.score}
+        </text>
+      </svg>
+      <p className="text-xs text-slate-400 text-center -mt-1">최근: {last.examName}</p>
+    </div>
+  );
+}
+
+function GradeTrend({ students, classes, scores }: { students: Student[]; classes: string[]; scores: ExamScore[] }) {
+  const [selectedClass, setSelectedClass] = useState(classes[0] ?? '');
+  const [studentId, setStudentId] = useState('');
+
+  useEffect(() => {
+    if (!selectedClass && classes.length > 0) setSelectedClass(classes[0]);
+  }, [classes, selectedClass]);
+
+  const classStudents = students.filter(s => s.className === selectedClass);
+
+  useEffect(() => {
+    if (classStudents.length > 0 && !classStudents.find(s => s.id === studentId)) {
+      setStudentId(classStudents[0].id);
+    }
+  }, [classStudents, studentId]);
+
+  const student = students.find(s => s.id === studentId);
+
+  const subjectSeries = EXAM_SUBJECTS
+    .map(subj => ({
+      subject: subj,
+      points: scores
+        .filter(s => s.studentName === student?.name && s.subject === subj)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    }))
+    .filter(s => s.points.length > 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-1.5">
+        {classes.map(c => (
+          <button key={c} type="button" onClick={() => setSelectedClass(c)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}>
+            {c}
+          </button>
+        ))}
+      </div>
+      {classStudents.length === 0 ? (
+        <p className="text-center text-slate-400 text-sm py-6">선택된 반에 학생이 없습니다</p>
+      ) : (
+        <>
+          <select value={studentId} onChange={e => setStudentId(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            {classStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          {subjectSeries.length === 0 ? (
+            <p className="text-center text-slate-400 text-sm py-6">입력된 성적이 없습니다</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {subjectSeries.map(({ subject, points }) => (
+                <SubjectTrendCard key={subject} subject={subject} points={points} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 function GradesTab({ students, classes }: { students: Student[]; classes: string[] }) {
+  const [subTab, setSubTab] = useState<GradesSubTab>('input');
   const [selectedClass, setSelectedClass] = useState(classes[0] ?? '');
   const [examName, setExamName] = useState('');
   const [subject, setSubject] = useState<string>(EXAM_SUBJECTS[0]);
@@ -104,77 +241,98 @@ function GradesTab({ students, classes }: { students: Student[]; classes: string
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-        <p className="text-sm font-semibold text-slate-700">성적 입력</p>
-        <div className="flex flex-wrap gap-1.5">
-          {classes.map(c => (
-            <button key={c} type="button" onClick={() => setSelectedClass(c)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}>
-              {c}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <input
-            className="flex-1 min-w-[160px] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            value={examName}
-            onChange={e => setExamName(e.target.value)}
-            placeholder="시험명 (예: 1학기 중간고사)"
-            list="exam-name-options"
-          />
-          <datalist id="exam-name-options">
-            {examNames.map(n => <option key={n} value={n} />)}
-          </datalist>
-          <select value={subject} onChange={e => setSubject(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            {EXAM_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setSubTab('input')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            subTab === 'input' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}>
+          <Pencil size={13} /> 입력
+        </button>
+        <button type="button" onClick={() => setSubTab('trend')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            subTab === 'trend' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}>
+          <LineChart size={13} /> 추이 그래프
+        </button>
       </div>
 
-      {!examName.trim() ? (
-        <p className="text-center text-slate-400 text-sm py-6">시험명을 입력하면 학생별 점수를 입력할 수 있습니다</p>
-      ) : classStudents.length === 0 ? (
-        <p className="text-center text-slate-400 text-sm py-6">선택된 반에 학생이 없습니다</p>
+      {subTab === 'trend' ? (
+        <GradeTrend students={students} classes={classes} scores={scores} />
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-          {classStudents.map(s => {
-            const existing = scoreFor(s.name);
-            return (
-              <div key={s.id} className="flex items-center gap-3 px-4 py-3">
-                <p className="w-20 flex-shrink-0 text-sm font-medium text-slate-800">{s.name}</p>
-                <input
-                  type="number"
-                  value={inputs[s.name] ?? existing?.score ?? ''}
-                  onChange={e => setInputs(prev => ({ ...prev, [s.name]: e.target.value }))}
-                  onKeyDown={e => e.key === 'Enter' && handleSave(s.name)}
-                  placeholder="점수"
-                  className="w-20 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-                <span className="text-xs text-slate-400">/ 100점</span>
-                {existing && (
-                  <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">저장됨</span>
-                )}
-                <div className="ml-auto flex items-center gap-1.5">
-                  <button
-                    onClick={() => handleSave(s.name)}
-                    disabled={savingName === s.name || inputs[s.name] === undefined}
-                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 disabled:opacity-40"
-                  >
-                    {savingName === s.name ? <Loader size={12} className="animate-spin" /> : '저장'}
-                  </button>
-                  {existing && (
-                    <button onClick={() => handleDelete(existing.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500">
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <>
+          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+            <p className="text-sm font-semibold text-slate-700">성적 입력</p>
+            <div className="flex flex-wrap gap-1.5">
+              {classes.map(c => (
+                <button key={c} type="button" onClick={() => setSelectedClass(c)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <input
+                className="flex-1 min-w-[160px] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                value={examName}
+                onChange={e => setExamName(e.target.value)}
+                placeholder="시험명 (예: 1학기 중간고사)"
+                list="exam-name-options"
+              />
+              <datalist id="exam-name-options">
+                {examNames.map(n => <option key={n} value={n} />)}
+              </datalist>
+              <select value={subject} onChange={e => setSubject(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                {EXAM_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {!examName.trim() ? (
+            <p className="text-center text-slate-400 text-sm py-6">시험명을 입력하면 학생별 점수를 입력할 수 있습니다</p>
+          ) : classStudents.length === 0 ? (
+            <p className="text-center text-slate-400 text-sm py-6">선택된 반에 학생이 없습니다</p>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+              {classStudents.map(s => {
+                const existing = scoreFor(s.name);
+                return (
+                  <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+                    <p className="w-20 flex-shrink-0 text-sm font-medium text-slate-800">{s.name}</p>
+                    <input
+                      type="number"
+                      value={inputs[s.name] ?? existing?.score ?? ''}
+                      onChange={e => setInputs(prev => ({ ...prev, [s.name]: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && handleSave(s.name)}
+                      placeholder="점수"
+                      className="w-20 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                    <span className="text-xs text-slate-400">/ 100점</span>
+                    {existing && (
+                      <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">저장됨</span>
+                    )}
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleSave(s.name)}
+                        disabled={savingName === s.name || inputs[s.name] === undefined}
+                        className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 disabled:opacity-40"
+                      >
+                        {savingName === s.name ? <Loader size={12} className="animate-spin" /> : '저장'}
+                      </button>
+                      {existing && (
+                        <button onClick={() => handleDelete(existing.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
