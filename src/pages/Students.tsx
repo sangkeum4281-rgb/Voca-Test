@@ -95,20 +95,22 @@ function SubjectTrendCard({ subject, points }: { subject: string; points: ExamSc
   const last = points[points.length - 1];
   const delta = points.length >= 2 ? last.score - points[points.length - 2].score : 0;
 
-  const width = 280, height = 160;
-  const padL = 26, padR = 10, padT = 22, padB = 46;
+  const width = 280, height = 140;
+  const padL = 26, padR = 10, padT = 22, padB = 26;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
   const baseline = padT + plotH;
   const n = points.length;
   const slot = plotW / n;
   const barW = Math.min(28, slot * 0.5);
+  const maxChars = Math.max(2, Math.floor(slot / 9));
 
   const bars = points.map((p, i) => {
     const cx = padL + slot * (i + 0.5);
     const pct = scorePct(p);
     const barH = (pct / 100) * plotH;
-    return { p, cx, x: cx - barW / 2, y: baseline - barH, barH };
+    const label = p.examName.length > maxChars ? p.examName.slice(0, maxChars - 1) + '…' : p.examName;
+    return { p, cx, x: cx - barW / 2, y: baseline - barH, barH, label };
   });
 
   return (
@@ -131,11 +133,9 @@ function SubjectTrendCard({ subject, points }: { subject: string; points: ExamSc
           <g key={i}>
             <path d={roundedTopRectPath(b.x, b.y, barW, b.barH, 4)} fill="#4f46e5" />
             <text x={b.cx} y={b.y - 5} textAnchor="middle" fontSize={10} fontWeight={700} fill="#1e293b">{b.p.score}</text>
-            <text
-              x={b.cx} y={baseline + 10} textAnchor="end" fontSize={8} fill="#94a3b8"
-              transform={`rotate(-40 ${b.cx} ${baseline + 10})`}
-            >
-              {b.p.examName}
+            <text x={b.cx} y={baseline + 12} textAnchor="middle" fontSize={8} fill="#94a3b8">
+              <title>{b.p.examName}</title>
+              {b.label}
             </text>
           </g>
         ))}
