@@ -610,6 +610,67 @@ export async function fetchAttendanceByMonth(year: number, month: number): Promi
   }));
 }
 
+// ── exam scores (학교 시험 성적) ────────────────────────────
+
+export const EXAM_SUBJECTS = ['국어', '영어', '수학', '사회', '과학', '역사'] as const;
+
+export interface ExamScore {
+  id: string;
+  studentName: string;
+  className: string;
+  examName: string;
+  subject: string;
+  score: number;
+  maxScore: number;
+  createdAt: string;
+}
+
+function mapExamScore(row: Record<string, unknown>): ExamScore {
+  return {
+    id: row.id as string,
+    studentName: row.student_name as string,
+    className: (row.class_name as string) ?? '',
+    examName: row.exam_name as string,
+    subject: row.subject as string,
+    score: row.score as number,
+    maxScore: (row.max_score as number) ?? 100,
+    createdAt: row.created_at as string,
+  };
+}
+
+export async function fetchExamScores(): Promise<ExamScore[]> {
+  const { data, error } = await supabase
+    .from('exam_scores')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapExamScore);
+}
+
+export async function upsertExamScore(payload: {
+  studentName: string; className: string; examName: string; subject: string; score: number; maxScore: number;
+}): Promise<ExamScore> {
+  const { data, error } = await supabase
+    .from('exam_scores')
+    .upsert({
+      student_name: payload.studentName,
+      class_name: payload.className,
+      exam_name: payload.examName,
+      subject: payload.subject,
+      score: payload.score,
+      max_score: payload.maxScore,
+    }, { onConflict: 'student_name,exam_name,subject' })
+    .select()
+    .single();
+  if (error) throw error;
+  return mapExamScore(data);
+}
+
+export async function deleteExamScore(id: string): Promise<void> {
+  const { error } = await supabase.from('exam_scores').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ── class notices (알림장) ─────────────────────────────────
 
 export const NOTICE_SUBJECTS = ['국어/역사', '수학', '영어', '과학/사회'] as const;

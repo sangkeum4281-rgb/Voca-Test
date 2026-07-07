@@ -10,11 +10,12 @@ import {
   getCheckinTimeBypassed, setCheckinTimeBypassUntil,
   fetchAllClassNotices, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS, sortClasses,
   setNoticeOrder,
-  type Student, type AttendanceRecord, type ClassSchedule, type ClassNotice,
+  fetchExamScores, upsertExamScore, deleteExamScore, EXAM_SUBJECTS,
+  type Student, type AttendanceRecord, type ClassSchedule, type ClassNotice, type ExamScore,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -52,7 +53,132 @@ function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => v
   );
 }
 
-type Tab = 'roster' | 'weekly' | 'schedule' | 'notices';
+type Tab = 'roster' | 'weekly' | 'schedule' | 'notices' | 'grades';
+
+function GradesTab({ students, classes }: { students: Student[]; classes: string[] }) {
+  const [selectedClass, setSelectedClass] = useState(classes[0] ?? '');
+  const [examName, setExamName] = useState('');
+  const [subject, setSubject] = useState<string>(EXAM_SUBJECTS[0]);
+  const [scores, setScores] = useState<ExamScore[]>([]);
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [savingName, setSavingName] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchExamScores().then(s => { setScores(s); setLoading(false); });
+  }, []);
+
+  useEffect(() => {
+    if (!selectedClass && classes.length > 0) setSelectedClass(classes[0]);
+  }, [classes, selectedClass]);
+
+  const classStudents = students.filter(s => s.className === selectedClass);
+  const examNames = [...new Set(scores.map(s => s.examName))].sort();
+
+  const scoreFor = (studentName: string) =>
+    scores.find(s => s.studentName === studentName && s.examName === examName.trim() && s.subject === subject);
+
+  const handleSave = async (studentName: string) => {
+    const raw = inputs[studentName];
+    if (raw === undefined || raw.trim() === '' || !examName.trim() || Number.isNaN(Number(raw))) return;
+    setSavingName(studentName);
+    try {
+      const saved = await upsertExamScore({
+        studentName, className: selectedClass, examName: examName.trim(), subject, score: Number(raw), maxScore: 100,
+      });
+      setScores(prev => [saved, ...prev.filter(s => s.id !== saved.id)]);
+      setInputs(prev => { const next = { ...prev }; delete next[studentName]; return next; });
+    } finally {
+      setSavingName(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteExamScore(id);
+    setScores(prev => prev.filter(s => s.id !== id));
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-12"><Loader size={24} className="animate-spin text-indigo-400" /></div>;
+  }
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+        <p className="text-sm font-semibold text-slate-700">성적 입력</p>
+        <div className="flex flex-wrap gap-1.5">
+          {classes.map(c => (
+            <button key={c} type="button" onClick={() => setSelectedClass(c)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}>
+              {c}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <input
+            className="flex-1 min-w-[160px] border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            value={examName}
+            onChange={e => setExamName(e.target.value)}
+            placeholder="시험명 (예: 1학기 중간고사)"
+            list="exam-name-options"
+          />
+          <datalist id="exam-name-options">
+            {examNames.map(n => <option key={n} value={n} />)}
+          </datalist>
+          <select value={subject} onChange={e => setSubject(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            {EXAM_SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {!examName.trim() ? (
+        <p className="text-center text-slate-400 text-sm py-6">시험명을 입력하면 학생별 점수를 입력할 수 있습니다</p>
+      ) : classStudents.length === 0 ? (
+        <p className="text-center text-slate-400 text-sm py-6">선택된 반에 학생이 없습니다</p>
+      ) : (
+        <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+          {classStudents.map(s => {
+            const existing = scoreFor(s.name);
+            return (
+              <div key={s.id} className="flex items-center gap-3 px-4 py-3">
+                <p className="w-20 flex-shrink-0 text-sm font-medium text-slate-800">{s.name}</p>
+                <input
+                  type="number"
+                  value={inputs[s.name] ?? existing?.score ?? ''}
+                  onChange={e => setInputs(prev => ({ ...prev, [s.name]: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && handleSave(s.name)}
+                  placeholder="점수"
+                  className="w-20 border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <span className="text-xs text-slate-400">/ 100점</span>
+                {existing && (
+                  <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">저장됨</span>
+                )}
+                <div className="ml-auto flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleSave(s.name)}
+                    disabled={savingName === s.name || inputs[s.name] === undefined}
+                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 disabled:opacity-40"
+                  >
+                    {savingName === s.name ? <Loader size={12} className="animate-spin" /> : '저장'}
+                  </button>
+                  {existing && (
+                    <button onClick={() => handleDelete(existing.id)} className="p-1.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, setNoticeContents, noticeSaving, setNoticeSaving, notices, setNotices }: {
   classes: string[];
@@ -421,6 +547,12 @@ export default function Students() {
             tab === 'notices' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}>
           <Bell size={15} /> 알림장
+        </button>
+        <button onClick={() => setTab('grades')}
+          className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'grades' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <GraduationCap size={15} /> 성적
         </button>
       </div>
 
@@ -1041,6 +1173,8 @@ export default function Students() {
         noticeSaving={noticeSaving} setNoticeSaving={setNoticeSaving}
         notices={notices} setNotices={setNotices}
       />}
+      {/* ── 성적 탭 ── */}
+      {tab === 'grades' && <GradesTab students={students} classes={classes} />}
     </div>
       {smsMode && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-50">
