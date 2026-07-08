@@ -343,6 +343,13 @@ function GradeRank({ students, classes, scores }: { students: Student[]; classes
     return { ...r, rank };
   });
 
+  const classExamScores = scores.filter(s => s.className === selectedClass && s.examName === examName);
+  const classAvgOverall = classExamScores.length > 0
+    ? classExamScores.reduce((sum, s) => sum + scorePct(s), 0) / classExamScores.length : null;
+  const schoolExamScores = scores.filter(s => s.examName === examName);
+  const schoolAvgOverall = schoolExamScores.length > 0
+    ? schoolExamScores.reduce((sum, s) => sum + scorePct(s), 0) / schoolExamScores.length : null;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-1.5">
@@ -366,23 +373,40 @@ function GradeRank({ students, classes, scores }: { students: Student[]; classes
           {rankedWithPos.length === 0 ? (
             <p className="text-center text-slate-400 text-sm py-6">해당 시험에 입력된 성적이 없습니다</p>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
-              {rankedWithPos.map(r => (
-                <div key={r.student.id} className="flex items-center gap-2.5">
-                  <span className={`w-6 flex-shrink-0 text-xs font-bold text-right ${r.rank === 1 ? 'text-amber-500' : 'text-slate-400'}`}>{r.rank}</span>
-                  <span className="w-16 flex-shrink-0 text-xs font-medium text-slate-700 truncate" title={r.student.name}>{r.student.name}</span>
-                  <div className="flex-1 h-4 bg-slate-100 rounded-r-md overflow-hidden">
-                    <div className="h-full bg-indigo-500 rounded-r-md" style={{ width: `${r.avg}%` }} />
+            <>
+              <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-500 inline-block" />학생 평균</span>
+                {classAvgOverall !== null && (
+                  <span className="flex items-center gap-1.5"><span className="w-3 border-t-2 border-dashed border-amber-500 inline-block" />반 평균 {classAvgOverall.toFixed(1)}점</span>
+                )}
+                {schoolAvgOverall !== null && (
+                  <span className="flex items-center gap-1.5"><span className="w-3 border-t-2 border-dotted border-cyan-600 inline-block" />학원 전체 평균 {schoolAvgOverall.toFixed(1)}점</span>
+                )}
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2">
+                {rankedWithPos.map(r => (
+                  <div key={r.student.id} className="flex items-center gap-2.5">
+                    <span className={`w-6 flex-shrink-0 text-xs font-bold text-right ${r.rank === 1 ? 'text-amber-500' : 'text-slate-400'}`}>{r.rank}</span>
+                    <span className="w-16 flex-shrink-0 text-xs font-medium text-slate-700 truncate" title={r.student.name}>{r.student.name}</span>
+                    <div className="flex-1 h-4 bg-slate-100 rounded-r-md overflow-hidden relative">
+                      <div className="h-full bg-indigo-500 rounded-r-md" style={{ width: `${r.avg}%` }} />
+                      {classAvgOverall !== null && (
+                        <div className="absolute inset-y-0 border-l-2 border-dashed border-amber-500" style={{ left: `${classAvgOverall}%` }} title={`반 평균 ${classAvgOverall.toFixed(1)}점`} />
+                      )}
+                      {schoolAvgOverall !== null && (
+                        <div className="absolute inset-y-0 border-l-2 border-dotted border-cyan-600" style={{ left: `${schoolAvgOverall}%` }} title={`학원 전체 평균 ${schoolAvgOverall.toFixed(1)}점`} />
+                      )}
+                    </div>
+                    <span className="w-14 flex-shrink-0 text-xs font-semibold text-slate-800 text-right">{r.avg.toFixed(1)}점</span>
                   </div>
-                  <span className="w-14 flex-shrink-0 text-xs font-semibold text-slate-800 text-right">{r.avg.toFixed(1)}점</span>
-                </div>
-              ))}
-              {unranked.length > 0 && (
-                <p className="text-xs text-slate-400 pt-2 mt-2 border-t border-slate-100">
-                  미응시: {unranked.map(u => u.student.name).join(', ')}
-                </p>
-              )}
-            </div>
+                ))}
+                {unranked.length > 0 && (
+                  <p className="text-xs text-slate-400 pt-2 mt-2 border-t border-slate-100">
+                    미응시: {unranked.map(u => u.student.name).join(', ')}
+                  </p>
+                )}
+              </div>
+            </>
           )}
         </>
       )}
