@@ -90,8 +90,10 @@ function roundedTopRectPath(x: number, y: number, w: number, h: number, r: numbe
   return `M ${x},${y + h} L ${x},${y + rr} Q ${x},${y} ${x + rr},${y} L ${x + w - rr},${y} Q ${x + w},${y} ${x + w},${y + rr} L ${x + w},${y + h} Z`;
 }
 
-// 과목별 성적 추이를 보여주는 세로 막대(컬럼) 그래프
-function SubjectTrendCard({ subject, points }: { subject: string; points: ExamScore[] }) {
+// 과목별 성적 추이를 보여주는 세로 막대(컬럼) 그래프 + 반/학원 전체 평균선
+function SubjectTrendCard({ subject, points, classAvg, schoolAvg, studentAvg }: {
+  subject: string; points: ExamScore[]; classAvg: Map<string, number>; schoolAvg: Map<string, number>; studentAvg: number;
+}) {
   const last = points[points.length - 1];
   const delta = points.length >= 2 ? last.score - points[points.length - 2].score : 0;
 
@@ -104,24 +106,30 @@ function SubjectTrendCard({ subject, points }: { subject: string; points: ExamSc
   const slot = plotW / n;
   const barW = Math.min(28, slot * 0.5);
   const maxChars = Math.max(2, Math.floor(slot / 9));
+  const yForPct = (pct: number) => baseline - (pct / 100) * plotH;
 
   const bars = points.map((p, i) => {
     const cx = padL + slot * (i + 0.5);
-    const pct = scorePct(p);
-    const barH = (pct / 100) * plotH;
+    const barH = (scorePct(p) / 100) * plotH;
     const label = p.examName.length > maxChars ? p.examName.slice(0, maxChars - 1) + '…' : p.examName;
-    return { p, cx, x: cx - barW / 2, y: baseline - barH, barH, label };
+    return {
+      p, cx, x: cx - barW / 2, y: baseline - barH, barH, label,
+      classAvgPct: classAvg.get(p.examName), schoolAvgPct: schoolAvg.get(p.examName),
+    };
   });
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-3">
       <div className="flex items-center justify-between mb-1">
         <p className="text-sm font-semibold text-slate-700">{subject}</p>
-        <GrowthBadge delta={delta} single={points.length < 2} />
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-400">평균 {studentAvg.toFixed(1)}</span>
+          <GrowthBadge delta={delta} single={points.length < 2} />
+        </div>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
         {[0, 50, 100].map(g => {
-          const y = baseline - (g / 100) * plotH;
+          const y = yForPct(g);
           return (
             <g key={g}>
               <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#e2e8f0" strokeWidth={1} />
@@ -132,6 +140,24 @@ function SubjectTrendCard({ subject, points }: { subject: string; points: ExamSc
         {bars.map((b, i) => (
           <g key={i}>
             <path d={roundedTopRectPath(b.x, b.y, barW, b.barH, 4)} fill="#4f46e5" />
+            {b.schoolAvgPct !== undefined && (
+              <line
+                x1={b.cx - barW / 2 - 4} x2={b.cx + barW / 2 + 4}
+                y1={yForPct(b.schoolAvgPct)} y2={yForPct(b.schoolAvgPct)}
+                stroke="#0891b2" strokeWidth={2} strokeDasharray="1 2"
+              >
+                <title>{`학원 전체 평균: ${b.schoolAvgPct.toFixed(1)}점`}</title>
+              </line>
+            )}
+            {b.classAvgPct !== undefined && (
+              <line
+                x1={b.cx - barW / 2 - 4} x2={b.cx + barW / 2 + 4}
+                y1={yForPct(b.classAvgPct)} y2={yForPct(b.classAvgPct)}
+                stroke="#f59e0b" strokeWidth={2} strokeDasharray="3 2"
+              >
+                <title>{`반 평균: ${b.classAvgPct.toFixed(1)}점`}</title>
+              </line>
+            )}
             <text x={b.cx} y={b.y - 5} textAnchor="middle" fontSize={10} fontWeight={700} fill="#1e293b">{b.p.score}</text>
             <text x={b.cx} y={baseline + 12} textAnchor="middle" fontSize={8} fill="#94a3b8">
               <title>{b.p.examName}</title>
@@ -163,34 +189,59 @@ function GradeTrend({ students, classes, scores }: { students: Student[]; classe
   const student = students.find(s => s.id === studentId);
 
   const subjectSeries = EXAM_SUBJECTS
-    .map(subj => ({
-      subject: subj,
-      points: scores
+    .map(subj => {
+      const points = scores
         .filter(s => s.studentName === student?.name && s.subject === subj)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    }))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      const classAvg = new Map<string, number>();
+      const schoolAvg = new Map<string, number>();
+      for (const p of points) {
+        if (!classAvg.has(p.examName)) {
+          const peers = scores.filter(s => s.className === selectedClass && s.subject === subj && s.examName === p.examName);
+          if (peers.length > 0) classAvg.set(p.examName, peers.reduce((sum, s) => sum + scorePct(s), 0) / peers.length);
+        }
+        if (!schoolAvg.has(p.examName)) {
+          const all = scores.filter(s => s.subject === subj && s.examName === p.examName);
+          if (all.length > 0) schoolAvg.set(p.examName, all.reduce((sum, s) => sum + scorePct(s), 0) / all.length);
+        }
+      }
+      const studentAvg = points.length > 0 ? points.reduce((sum, p) => sum + scorePct(p), 0) / points.length : 0;
+      return { subject: subj, points, classAvg, schoolAvg, studentAvg };
+    })
     .filter(s => s.points.length > 0);
 
   const printReport = () => {
     if (!student || subjectSeries.length === 0) return;
-    const sections = subjectSeries.map(({ subject, points }) => {
+    const sections = subjectSeries.map(({ subject, points, classAvg, schoolAvg, studentAvg }) => {
       const last = points[points.length - 1];
       const delta = points.length >= 2 ? last.score - points[points.length - 2].score : 0;
       const deltaText = points.length < 2 ? '첫 성적' : delta === 0 ? '변동없음' : `${delta > 0 ? '▲ +' : '▼ '}${delta}점`;
       const deltaColor = points.length < 2 ? '#94a3b8' : delta > 0 ? '#16a34a' : delta < 0 ? '#dc2626' : '#64748b';
       const barMaxH = 110;
-      const cols = points.map(p => `
+      const cols = points.map(p => {
+        const classAvgPct = classAvg.get(p.examName);
+        const schoolAvgPct = schoolAvg.get(p.examName);
+        const classLine = classAvgPct !== undefined
+          ? `<div style="position:absolute;left:-6px;right:-6px;bottom:${(classAvgPct / 100) * barMaxH}px;border-top:2px dashed #f59e0b;"></div>`
+          : '';
+        const schoolLine = schoolAvgPct !== undefined
+          ? `<div style="position:absolute;left:-6px;right:-6px;bottom:${(schoolAvgPct / 100) * barMaxH}px;border-top:2px dotted #0891b2;"></div>`
+          : '';
+        return `
         <div style="display:flex;flex-direction:column;align-items:center;width:64px;flex-shrink:0;">
           <span style="font-size:11px;font-weight:bold;color:#1e293b;margin-bottom:3px;">${p.score}</span>
-          <div style="display:flex;align-items:flex-end;height:${barMaxH}px;">
+          <div style="position:relative;display:flex;align-items:flex-end;height:${barMaxH}px;">
             <div style="width:28px;background:#4f46e5;border-radius:4px 4px 0 0;height:${Math.max(2, (scorePct(p) / 100) * barMaxH)}px;"></div>
+            ${schoolLine}
+            ${classLine}
           </div>
           <span style="font-size:9px;color:#64748b;text-align:center;margin-top:4px;line-height:1.3;word-break:break-all;">${escapeHtml(p.examName)}</span>
-        </div>`).join('');
+        </div>`;
+      }).join('');
       return `
         <div style="margin-bottom:22px;break-inside:avoid;">
           <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-            <h3 style="font-size:14px;font-weight:bold;color:#3730a3;margin:0;">${escapeHtml(subject)}</h3>
+            <h3 style="font-size:14px;font-weight:bold;color:#3730a3;margin:0;">${escapeHtml(subject)} <span style="font-size:11px;font-weight:normal;color:#94a3b8;">평균 ${studentAvg.toFixed(1)}</span></h3>
             <span style="font-size:11px;font-weight:bold;color:${deltaColor};">${deltaText}</span>
           </div>
           <div style="display:flex;align-items:flex-end;gap:14px;border-bottom:1px solid #e2e8f0;padding-bottom:0;">${cols}</div>
@@ -203,7 +254,8 @@ function GradeTrend({ students, classes, scores }: { students: Student[]; classe
       <style>body{font-family:sans-serif;margin:0;padding:24px;color:#1e293b;}@media print{@page{margin:14mm;}}</style>
       </head><body>
         <h2 style="font-size:17px;font-weight:bold;margin-bottom:2px;">최강학원 성적 리포트</h2>
-        <p style="font-size:12px;color:#64748b;margin-bottom:18px;">${escapeHtml(student.className)} · ${escapeHtml(student.name)} · ${new Date().toLocaleDateString('ko-KR')}</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:6px;">${escapeHtml(student.className)} · ${escapeHtml(student.name)} · ${new Date().toLocaleDateString('ko-KR')}</p>
+        <p style="font-size:10px;color:#94a3b8;margin-bottom:18px;">■ 학생 점수 &nbsp;&nbsp;<span style="color:#f59e0b;">- - 반 평균</span> &nbsp;&nbsp;<span style="color:#0891b2;">···· 학원 전체 평균</span></p>
         ${sections}
         <script>window.onload=()=>window.print();</script>
       </body></html>`);
@@ -239,11 +291,18 @@ function GradeTrend({ students, classes, scores }: { students: Student[]; classe
           {subjectSeries.length === 0 ? (
             <p className="text-center text-slate-400 text-sm py-6">입력된 성적이 없습니다</p>
           ) : (
-            <div className="grid sm:grid-cols-2 gap-3">
-              {subjectSeries.map(({ subject, points }) => (
-                <SubjectTrendCard key={subject} subject={subject} points={points} />
-              ))}
-            </div>
+            <>
+              <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-500 inline-block" />내 점수</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 border-t-2 border-dashed border-amber-500 inline-block" />반 평균</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 border-t-2 border-dotted border-cyan-600 inline-block" />학원 전체 평균</span>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {subjectSeries.map(({ subject, points, classAvg, schoolAvg, studentAvg }) => (
+                  <SubjectTrendCard key={subject} subject={subject} points={points} classAvg={classAvg} schoolAvg={schoolAvg} studentAvg={studentAvg} />
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
