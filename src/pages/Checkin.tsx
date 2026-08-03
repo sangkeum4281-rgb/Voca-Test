@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAligoAttendanceSms,
-  fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil, getCheckinTimeBypassed,
+  fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil,
   getSpecialDates, type OpenDate,
   type Student, type ClassSchedule,
 } from '../lib/db';
-import { CheckCircle, Loader, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader } from 'lucide-react';
 
 const RADIUS_M = 100;
 const STUDENT_NAME_KEY = 'vocab-student-name';
@@ -23,7 +23,6 @@ export default function Checkin() {
   const [distance, setDistance] = useState<number | null>(null);
   const [nameInput, setNameInput] = useState(() => localStorage.getItem(STUDENT_NAME_KEY) ?? '');
   const [error, setError] = useState('');
-  const [timeBypassed, setTimeBypassed] = useState(false);
   const [openEntry, setOpenEntry] = useState<OpenDate | null>(null);
 
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -39,14 +38,12 @@ export default function Checkin() {
 
   useEffect(() => {
     const loadData = async () => {
-      const [stu, att, sch, timeBp, special] = await Promise.all([
+      const [stu, att, sch, special] = await Promise.all([
         fetchStudents(),
         fetchAttendanceByDate(today),
         fetchClassSchedules().catch(() => []),
-        getCheckinTimeBypassed(),
         getSpecialDates().catch(() => ({ closed: [], open: [] })),
       ]);
-      setTimeBypassed(timeBp);
       setOpenEntry(special.open.find(o => o.date === today) ?? null);
       setStudents(stu);
       setSchedules(sch);
@@ -156,17 +153,6 @@ export default function Checkin() {
   }
 
 
-
-  const kstHour = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
-  if (kstHour < 16 && !timeBypassed && !openEntry) {
-    return (
-      <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center gap-5 p-8 text-white text-center">
-        <AlertCircle size={64} className="text-yellow-300" />
-        <h1 className="text-2xl font-bold">아직 출석 시간이 아닙니다</h1>
-        <p className="text-indigo-200">출석은 오후 4시부터 가능합니다</p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center p-6">
