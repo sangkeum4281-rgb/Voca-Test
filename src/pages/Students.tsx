@@ -14,8 +14,8 @@ import {
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, Printer, Trophy, ArrowRightLeft } from 'lucide-react';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, Printer, Trophy } from 'lucide-react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -48,6 +48,33 @@ function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => v
       <button onClick={onDelete} className="shrink-0 text-slate-300 hover:text-red-400 transition-colors pt-0.5">
         <Trash2 size={14} />
       </button>
+    </div>
+  );
+}
+
+function DraggableStudentRow({ id, disabled, children }: { id: string; disabled?: boolean; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, disabled });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.4 : 1 }}
+      className="flex items-center gap-2"
+    >
+      <button {...attributes} {...listeners} disabled={disabled}
+        className="shrink-0 text-slate-300 hover:text-slate-400 cursor-grab active:cursor-grabbing touch-none disabled:opacity-30 disabled:cursor-not-allowed">
+        <GripVertical size={14} />
+      </button>
+      <div className="flex flex-1 items-center justify-between gap-3 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function DroppableClassGroup({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef}
+      className={`bg-white rounded-xl border overflow-hidden transition-colors ${isOver ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-200'}`}>
+      {children}
     </div>
   );
 }
@@ -719,9 +746,8 @@ export default function Students() {
   const [collapsedClasses, setCollapsedClasses] = useState<Set<string>>(new Set());
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null);
   const [editingPhoneVal, setEditingPhoneVal] = useState('');
-  const [movingClassId, setMovingClassId] = useState<string | null>(null);
-  const [movingClassVal, setMovingClassVal] = useState('');
   const [moving, setMoving] = useState(false);
+  const rosterSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [scheduleEdits, setScheduleEdits] = useState<Record<string, string>>({});
   const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -810,21 +836,26 @@ export default function Students() {
     }
   };
 
-  const handleMoveClass = async (student: Student) => {
-    const newClass = movingClassVal.trim();
-    if (!newClass || newClass === student.className) { setMovingClassId(null); return; }
+  const handleMoveClass = async (student: Student, newClass: string) => {
+    if (!newClass || newClass === student.className) return;
     if (!confirm(`'${student.name}' 학생을 '${student.className}' → '${newClass}'(으)로 이동합니다.\n기존 성적 기록도 함께 옮겨집니다. 계속할까요?`)) return;
     setMoving(true);
     try {
       await moveStudentClass(student.id, student.name, newClass);
       setStudents(prev => prev.map(s => s.id === student.id ? { ...s, className: newClass } : s));
-      setMovingClassId(null);
-      setMovingClassVal('');
     } catch (e) {
       alert(`반 이동 실패: ${String(e)}`);
     } finally {
       setMoving(false);
     }
+  };
+
+  const handleRosterDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const student = students.find(s => s.id === active.id);
+    if (!student) return;
+    handleMoveClass(student, String(over.id));
   };
 
   // sortStudents를 컴포넌트 내에서도 쓸 수 있도록
@@ -1086,22 +1117,20 @@ export default function Students() {
             )}
           </div>
 
-          <datalist id="roster-class-options">
-            {classes.map(c => <option key={c} value={c} />)}
-          </datalist>
-
           {students.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
               <Users size={36} className="mx-auto text-slate-300 mb-3" />
               <p className="text-slate-400 text-sm">등록된 학생이 없습니다</p>
             </div>
           ) : (
+            <DndContext sensors={rosterSensors} collisionDetection={closestCenter} onDragEnd={handleRosterDragEnd}>
             <div className="space-y-3">
+              <p className="text-xs text-slate-400">↕ 손잡이를 잡고 다른 반으로 끌어다 놓으면 반이 이동됩니다 (성적 기록도 함께 이동)</p>
               {sortClasses([...new Set(students.map(s => s.className).filter(Boolean))]).map(cls => {
                 const inClass = students.filter(s => s.className === cls);
                 const collapsed = collapsedClasses.has(cls);
                 return (
-                  <div key={cls} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  <DroppableClassGroup id={cls} key={cls}>
                     <div className="flex items-center px-5 py-3 bg-slate-50">
                       <button onClick={() => toggleClass(cls)} className="flex-1 flex items-center gap-2 text-left">
                         <p className="text-sm font-semibold text-slate-700">{cls || '반 미지정'}</p>
@@ -1127,7 +1156,7 @@ export default function Students() {
                       <div className="divide-y divide-slate-100">
                         {inClass.map(s => (
                           <div key={s.id} className="px-5 py-3">
-                          <div className="flex items-center justify-between gap-3">
+                          <DraggableStudentRow id={s.id} disabled={smsMode || moving}>
                             {smsMode && (
                               <input type="checkbox" checked={selectedIds.has(s.id)}
                                 onChange={() => setSelectedIds(prev => {
@@ -1177,42 +1206,20 @@ export default function Students() {
                               className={`text-xs px-1.5 py-0.5 rounded transition-colors flex-shrink-0 ${s.gpsExempt ? 'bg-orange-100 text-orange-600' : 'text-slate-300 hover:text-orange-400'}`}>
                               GPS예외
                             </button>
-                            <button onClick={() => { setMovingClassId(movingClassId === s.id ? null : s.id); setMovingClassVal(s.className); }}
-                              className={`p-1.5 rounded transition-colors flex-shrink-0 ${movingClassId === s.id ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-slate-100 text-slate-300 hover:text-indigo-500'}`}>
-                              <ArrowRightLeft size={14} />
-                            </button>
                             <button onClick={() => handleDelete(s.id, s.name)}
                               className="p-1.5 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0">
                               <Trash2 size={15} />
                             </button>
-                          </div>
-                          {movingClassId === s.id && (
-                            <div className="flex items-center gap-1.5 mt-2">
-                              <input
-                                list="roster-class-options"
-                                className="flex-1 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                                value={movingClassVal}
-                                onChange={e => setMovingClassVal(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleMoveClass(s)}
-                                placeholder="옮길 반 이름"
-                                autoFocus
-                              />
-                              <button onClick={() => handleMoveClass(s)} disabled={moving}
-                                className="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700 disabled:opacity-40 whitespace-nowrap">
-                                {moving ? <Loader size={12} className="animate-spin" /> : '반 이동'}
-                              </button>
-                              <button onClick={() => setMovingClassId(null)}
-                                className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs hover:bg-slate-50">취소</button>
-                            </div>
-                          )}
+                          </DraggableStudentRow>
                           </div>
                         ))}
                       </div>
                     )}
-                  </div>
+                  </DroppableClassGroup>
                 );
               })}
             </div>
+            </DndContext>
           )}
           <p className="text-xs text-slate-400 text-center">총 {students.length}명 등록</p>
         </div>
