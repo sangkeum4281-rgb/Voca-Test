@@ -284,6 +284,14 @@ export async function updateStudentGpsExempt(id: string, gpsExempt: boolean): Pr
   if (error) throw error;
 }
 
+// 반 이동: 학생의 소속 반과 함께 기존 성적 기록도 새 반으로 옮긴다
+export async function moveStudentClass(id: string, studentName: string, newClassName: string): Promise<void> {
+  const { error: e1 } = await supabase.from('students').update({ class_name: newClassName }).eq('id', id);
+  if (e1) throw e1;
+  const { error: e2 } = await supabase.from('exam_scores').update({ class_name: newClassName }).eq('student_name', studentName);
+  if (e2) throw e2;
+}
+
 async function solapiSign(apiKey: string, apiSecret: string): Promise<string> {
   const date = new Date().toISOString();
   const salt = crypto.randomUUID().replace(/-/g, '');
