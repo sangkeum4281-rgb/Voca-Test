@@ -92,8 +92,9 @@ function ClassCategoryButtons({ classes, isActive, onClick, expanded, onToggleEx
   );
 }
 
-function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: n.id });
+// 같은 반의 알림(과목별)을 하나의 카드로 묶어서 보여준다 — 드래그 단위는 반(그룹)
+function SortableNoticeGroup({ clsName, items, onDeleteItem }: { clsName: string; items: ClassNotice[]; onDeleteItem: (id: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: clsName });
   return (
     <div
       ref={setNodeRef}
@@ -104,15 +105,21 @@ function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => v
         <GripVertical size={15} />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-          <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n.className}</span>
-          {n.subject && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>}
+        <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full inline-block mb-1.5">{clsName}</span>
+        <div className="divide-y divide-slate-100">
+          {items.map(n => (
+            <div key={n.id} className="py-1.5 first:pt-0 last:pb-0 flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                {n.subject && <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>}
+                <p className="text-sm text-slate-700">{n.content}</p>
+              </div>
+              <button onClick={() => onDeleteItem(n.id)} className="shrink-0 text-slate-300 hover:text-red-400 transition-colors pt-0.5">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
         </div>
-        <p className="text-sm text-slate-700">{n.content}</p>
       </div>
-      <button onClick={onDelete} className="shrink-0 text-slate-300 hover:text-red-400 transition-colors pt-0.5">
-        <Trash2 size={14} />
-      </button>
     </div>
   );
 }
@@ -711,14 +718,22 @@ function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, 
     return acc;
   }, {});
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  // 오늘 알림을 반(className) 단위로 묶는다 — 같은 반이면 과목이 달라도 한 카드에
+  const noticeGroups = notices.reduce<{ clsName: string; items: ClassNotice[] }[]>((acc, n) => {
+    const g = acc.find(x => x.clsName === n.className);
+    if (g) g.items.push(n); else acc.push({ clsName: n.className, items: [n] });
+    return acc;
+  }, []);
+
+  const handleGroupDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIdx = notices.findIndex(n => n.id === active.id);
-    const newIdx = notices.findIndex(n => n.id === over.id);
-    const reordered = arrayMove(notices, oldIdx, newIdx);
-    setNotices(reordered);
-    await setNoticeOrder(reordered.map(n => n.id));
+    const oldIdx = noticeGroups.findIndex(g => g.clsName === active.id);
+    const newIdx = noticeGroups.findIndex(g => g.clsName === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const flat = arrayMove(noticeGroups, oldIdx, newIdx).flatMap(g => g.items);
+    setNotices(flat);
+    await setNoticeOrder(flat.map(n => n.id));
   };
 
   return (
@@ -793,13 +808,13 @@ function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, 
       {notices.length === 0 ? (
         <p className="text-center text-slate-400 text-sm py-6">오늘 등록된 알림이 없습니다</p>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={notices.map(n => n.id)} strategy={verticalListSortingStrategy}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupDragEnd}>
+          <SortableContext items={noticeGroups.map(g => g.clsName)} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
-              {notices.map(n => (
-                <SortableNoticeItem key={n.id} n={n} onDelete={async () => {
-                  await deleteClassNotice(n.id);
-                  setNotices(prev => prev.filter(x => x.id !== n.id));
+              {noticeGroups.map(g => (
+                <SortableNoticeGroup key={g.clsName} clsName={g.clsName} items={g.items} onDeleteItem={async (id) => {
+                  await deleteClassNotice(id);
+                  setNotices(prev => prev.filter(x => x.id !== id));
                 }} />
               ))}
             </div>
@@ -842,23 +857,25 @@ function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, 
                     <p className="text-xs font-bold text-slate-400">
                       {new Date(day + 'T00:00:00+09:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
                     </p>
-                    {items.map(n => (
-                      <div key={n.id} className="bg-white rounded-xl border border-slate-200 px-3 py-3 flex gap-2 items-start">
-                        <div className="flex-1 min-w-0">
-                          {n.subject && (
-                            <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
-                          )}
-                          <p className="text-sm text-slate-700">{n.content}</p>
+                    <div className="bg-white rounded-xl border border-slate-200 px-3 divide-y divide-slate-100">
+                      {items.map(n => (
+                        <div key={n.id} className="py-3 flex gap-2 items-start">
+                          <div className="flex-1 min-w-0">
+                            {n.subject && (
+                              <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
+                            )}
+                            <p className="text-sm text-slate-700">{n.content}</p>
+                          </div>
+                          <button onClick={async () => {
+                              await deleteClassNotice(n.id);
+                              setHistoryItems(prev => prev.filter(x => x.id !== n.id));
+                            }}
+                            className="shrink-0 text-slate-300 hover:text-red-400 transition-colors pt-0.5">
+                            <Trash2 size={14} />
+                          </button>
                         </div>
-                        <button onClick={async () => {
-                            await deleteClassNotice(n.id);
-                            setHistoryItems(prev => prev.filter(x => x.id !== n.id));
-                          }}
-                          className="shrink-0 text-slate-300 hover:text-red-400 transition-colors pt-0.5">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>

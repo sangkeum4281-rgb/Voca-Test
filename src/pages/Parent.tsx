@@ -163,14 +163,16 @@ export default function Parent() {
                     </p>
                   </div>
                 </div>
-                {todayNotices.map(n => (
-                  <div key={n.id} className="bg-white rounded-lg border border-amber-100 px-3 py-2.5">
-                    {n.subject && (
-                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1.5 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
-                    )}
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
-                  </div>
-                ))}
+                <div className="bg-white rounded-lg border border-amber-100 px-3 divide-y divide-amber-50">
+                  {todayNotices.map(n => (
+                    <div key={n.id} className="py-2.5">
+                      {n.subject && (
+                        <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1.5 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
+                      )}
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -189,14 +191,16 @@ export default function Parent() {
                         <p className="text-xs font-bold text-slate-400">
                           {new Date(day + 'T00:00:00+09:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
                         </p>
-                        {items.map(n => (
-                          <div key={n.id} className="bg-slate-50 rounded-lg border border-slate-100 px-3 py-2.5">
-                            {n.subject && (
-                              <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
-                            )}
-                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
-                          </div>
-                        ))}
+                        <div className="bg-slate-50 rounded-lg border border-slate-100 px-3 divide-y divide-slate-200">
+                          {items.map(n => (
+                            <div key={n.id} className="py-2.5">
+                              {n.subject && (
+                                <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
+                              )}
+                              <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.content}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
