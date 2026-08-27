@@ -7,14 +7,14 @@ import {
   fetchClassSchedules, upsertClassSchedule, deleteClassSchedule, getStartTime, setSchoolLocation, getSchoolLocation,
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
   getSmsTestPhone, setSmsTestPhone, getSpecialDates, setSpecialDates,
-  fetchAllClassNotices, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS, sortClasses,
+  fetchAllClassNotices, fetchClassNoticesByMonth, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS, sortClasses,
   setNoticeOrder,
   fetchExamScores, upsertExamScore, deleteExamScore, EXAM_SUBJECTS,
   type Student, type AttendanceRecord, type ClassSchedule, type ClassNotice, type ExamScore,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, Printer, Trophy } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, Printer, Trophy, History } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -26,6 +26,71 @@ const SUBJECT_COLORS: Record<string, string> = {
   '영어': 'text-violet-700 bg-violet-100',
   '과학/사회': 'text-orange-700 bg-orange-100',
 };
+
+// 같은 학년(중/고 구분 포함)의 반들을 하나의 카테고리로 묶는다 (예: 금오고교 1학년 + 문창고교 1학년 → '고등부 1학년')
+function groupClassButtons(classes: string[]): { key: string; label: string; members: string[] }[] {
+  const groups = new Map<string, string[]>();
+  const order: string[] = [];
+  for (const c of classes) {
+    const isHigh = /고등|고교/.test(c);
+    const gradeMatch = c.match(/(\d)\s*학년/);
+    const key = gradeMatch ? `${isHigh ? '고등부' : '중등부'} ${gradeMatch[1]}학년` : `single:${c}`;
+    if (!groups.has(key)) { groups.set(key, []); order.push(key); }
+    groups.get(key)!.push(c);
+  }
+  return order.map(key => {
+    const members = groups.get(key)!;
+    return { key, label: key.startsWith('single:') ? members[0] : key, members };
+  });
+}
+
+// 반 선택 버튼 목록 — 같은 학년의 반이 여럿이면 하나의 카테고리 버튼으로 묶어서 펼쳐 보이게 한다
+function ClassCategoryButtons({ classes, isActive, onClick, expanded, onToggleExpand }: {
+  classes: string[];
+  isActive: (cls: string) => boolean;
+  onClick: (cls: string) => void;
+  expanded: Set<string>;
+  onToggleExpand: (key: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {groupClassButtons(classes).map(g => {
+        if (g.members.length === 1) {
+          const c = g.members[0];
+          return (
+            <button key={c} type="button" onClick={() => onClick(c)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                isActive(c) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}>
+              {isActive(c) && '✓ '}{c}
+            </button>
+          );
+        }
+        const isOpen = expanded.has(g.key);
+        const anyActive = g.members.some(isActive);
+        return (
+          <div key={g.key} className="flex flex-wrap items-center gap-1.5">
+            <button type="button" onClick={() => onToggleExpand(g.key)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                anyActive ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+              }`}>
+              {g.label} <span className="text-slate-400">({g.members.length})</span>
+              {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            {isOpen && g.members.map(c => (
+              <button key={c} type="button" onClick={() => onClick(c)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                  isActive(c) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                }`}>
+                {isActive(c) && '✓ '}{c}
+              </button>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function SortableNoticeItem({ n, onDelete }: { n: ClassNotice; onDelete: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: n.id });
@@ -603,6 +668,48 @@ function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, 
   notices: ClassNotice[]; setNotices: React.Dispatch<React.SetStateAction<ClassNotice[]>>;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [expandedNoticeGroups, setExpandedNoticeGroups] = useState<Set<string>>(new Set());
+  const [expandedHistoryGroups, setExpandedHistoryGroups] = useState<Set<string>>(new Set());
+  const toggleExpand = (setFn: React.Dispatch<React.SetStateAction<Set<string>>>) => (key: string) =>
+    setFn(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyClass, setHistoryClass] = useState(classes[0] ?? '');
+  const [historyYear, setHistoryYear] = useState(() => new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCFullYear());
+  const [historyMonth, setHistoryMonth] = useState(() => new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCMonth() + 1);
+  const [historyItems, setHistoryItems] = useState<ClassNotice[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const loadHistory = async (cls: string, y: number, m: number) => {
+    if (!cls) return;
+    setHistoryLoading(true);
+    try {
+      setHistoryItems(await fetchClassNoticesByMonth(cls, y, m));
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (historyOpen) loadHistory(historyClass, historyYear, historyMonth);
+  }, [historyOpen, historyClass, historyYear, historyMonth]);
+
+  const shiftHistoryMonth = (delta: number) => {
+    let y = historyYear, m = historyMonth + delta;
+    if (m > 12) { m = 1; y++; }
+    if (m < 1)  { m = 12; y--; }
+    setHistoryYear(y); setHistoryMonth(m);
+  };
+
+  const historyByDate = historyItems.reduce<Record<string, ClassNotice[]>>((acc, n) => {
+    const day = new Date(new Date(n.createdAt).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    (acc[day] ??= []).push(n);
+    return acc;
+  }, {});
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -619,21 +726,16 @@ function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, 
       {/* 새 알림 작성 */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
         <p className="text-sm font-semibold text-slate-700">알림 작성</p>
-        {/* 반 선택 (다중) */}
-        <div className="flex flex-wrap gap-1.5">
-          {classes.map(c => {
-            const on = noticeClasses.has(c);
-            return (
-              <button key={c} type="button" onClick={() => setNoticeClasses(prev => {
-                const next = new Set(prev); on ? next.delete(c) : next.add(c); return next;
-              })} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}>
-                {on && '✓ '}{c}
-              </button>
-            );
+        {/* 반 선택 (다중) — 같은 학년 반은 하나의 카테고리로 묶어서 표시 */}
+        <ClassCategoryButtons
+          classes={classes}
+          isActive={c => noticeClasses.has(c)}
+          onClick={c => setNoticeClasses(prev => {
+            const next = new Set(prev); next.has(c) ? next.delete(c) : next.add(c); return next;
           })}
-        </div>
+          expanded={expandedNoticeGroups}
+          onToggleExpand={toggleExpand(setExpandedNoticeGroups)}
+        />
         <div className="space-y-1.5">
           {([
             ['국어/역사', 'text-blue-700 bg-blue-50 border-blue-200', 'focus:ring-blue-300 border-blue-200'],
@@ -704,6 +806,66 @@ function NoticesTab({ classes, noticeClasses, setNoticeClasses, noticeContents, 
           </SortableContext>
         </DndContext>
       )}
+
+      {/* 지난 알림장(숙제) 보기 */}
+      <div className="pt-2 border-t border-slate-200">
+        <button type="button" onClick={() => setHistoryOpen(v => !v)}
+          className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 py-2">
+          <History size={13} /> 지난 알림장 보기 {historyOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        </button>
+        {historyOpen && (
+          <div className="space-y-3">
+            <ClassCategoryButtons
+              classes={classes}
+              isActive={c => historyClass === c}
+              onClick={c => setHistoryClass(c)}
+              expanded={expandedHistoryGroups}
+              onToggleExpand={toggleExpand(setExpandedHistoryGroups)}
+            />
+            <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-2.5">
+              <button onClick={() => shiftHistoryMonth(-1)} className="p-1.5 rounded hover:bg-slate-100">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-sm font-semibold text-slate-700">{historyYear}년 {historyMonth}월</span>
+              <button onClick={() => shiftHistoryMonth(1)} className="p-1.5 rounded hover:bg-slate-100">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            {historyLoading ? (
+              <div className="flex justify-center py-8"><Loader size={20} className="animate-spin text-indigo-400" /></div>
+            ) : Object.keys(historyByDate).length === 0 ? (
+              <p className="text-center text-slate-400 text-sm py-6">해당 월에 등록된 알림이 없습니다</p>
+            ) : (
+              <div className="space-y-4">
+                {Object.entries(historyByDate).sort((a, b) => b[0].localeCompare(a[0])).map(([day, items]) => (
+                  <div key={day} className="space-y-2">
+                    <p className="text-xs font-bold text-slate-400">
+                      {new Date(day + 'T00:00:00+09:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
+                    </p>
+                    {items.map(n => (
+                      <div key={n.id} className="bg-white rounded-xl border border-slate-200 px-3 py-3 flex gap-2 items-start">
+                        <div className="flex-1 min-w-0">
+                          {n.subject && (
+                            <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-1 ${SUBJECT_COLORS[n.subject] ?? 'text-amber-700 bg-amber-100'}`}>{n.subject}</span>
+                          )}
+                          <p className="text-sm text-slate-700">{n.content}</p>
+                        </div>
+                        <button onClick={async () => {
+                            await deleteClassNotice(n.id);
+                            setHistoryItems(prev => prev.filter(x => x.id !== n.id));
+                          }}
+                          className="shrink-0 text-slate-300 hover:text-red-400 transition-colors pt-0.5">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

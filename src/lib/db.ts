@@ -700,6 +700,15 @@ function kstTodayRange() {
   };
 }
 
+function kstMonthRange(year: number, month: number) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    start: new Date(`${year}-${pad(month)}-01T00:00:00+09:00`).toISOString(),
+    end:   new Date(`${year}-${pad(month)}-${pad(lastDay)}T23:59:59+09:00`).toISOString(),
+  };
+}
+
 function mapNotice(r: Record<string, unknown>): ClassNotice {
   return {
     id: r.id as string,
@@ -712,6 +721,20 @@ function mapNotice(r: Record<string, unknown>): ClassNotice {
 
 export async function fetchClassNotices(className: string): Promise<ClassNotice[]> {
   const { start, end } = kstTodayRange();
+  const { data, error } = await supabase
+    .from('class_notices')
+    .select('*')
+    .eq('class_name', className)
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapNotice);
+}
+
+// 특정 반의 특정 월(KST 기준) 알림장 전체 — 지난 숙제/알림 확인용
+export async function fetchClassNoticesByMonth(className: string, year: number, month: number): Promise<ClassNotice[]> {
+  const { start, end } = kstMonthRange(year, month);
   const { data, error } = await supabase
     .from('class_notices')
     .select('*')
