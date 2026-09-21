@@ -6,6 +6,30 @@ const DAYS = [
   { wd: 5, label: '금' }, { wd: 6, label: '토' }, { wd: 0, label: '일' },
 ];
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+const SELECT_CLS = 'border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-slate-50 disabled:text-slate-300';
+
+// 24시간제 시/분 선택 — 브라우저 time 입력칸은 오전/오후까지 채워야 값이 잡혀서 저장이 안 켜지는 문제가 있었음
+// 시를 '--'로 두면 빈 값(= 기본 시간 적용)
+function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [h = '', m = ''] = value ? value.split(':') : [];
+  const minutes = m && !MINUTES.includes(m) ? [...MINUTES, m].sort() : MINUTES;
+  return (
+    <div className="flex items-center gap-1">
+      <select value={h} onChange={e => onChange(e.target.value ? `${e.target.value}:${m || '00'}` : '')} className={SELECT_CLS}>
+        <option value="">--</option>
+        {HOURS.map(x => <option key={x} value={x}>{x}</option>)}
+      </select>
+      <span className="text-slate-400 text-sm">:</span>
+      <select value={h ? m : ''} disabled={!h} onChange={e => onChange(`${h}:${e.target.value}`)} className={SELECT_CLS}>
+        {!h && <option value="">--</option>}
+        {minutes.map(x => <option key={x} value={x}>{x}</option>)}
+      </select>
+    </div>
+  );
+}
+
 interface Props {
   targets: string[];                 // 학년 키(중등부 1학년 …) + 반 이름
   schedules: ClassSchedule[];
@@ -42,8 +66,9 @@ export default function WeekdayScheduleEditor({ targets, schedules, weekdaySched
       }
       onChange(next);
       setEdits({});
-    } catch {
-      alert('저장에 실패했습니다. class_weekday_schedules 테이블이 만들어졌는지 확인해주세요.');
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? '';
+      alert(`저장에 실패했습니다.${msg ? `\n\n${msg}` : ''}\n\nclass_weekday_schedules 테이블/정책이 만들어졌는지 확인해주세요.`);
     } finally {
       setSaving(false);
     }
@@ -66,9 +91,7 @@ export default function WeekdayScheduleEditor({ targets, schedules, weekdaySched
           <div key={wd} className="flex items-center justify-between px-4 py-2">
             <span className={`text-sm font-semibold ${wd === 0 ? 'text-red-500' : wd === 6 ? 'text-blue-500' : 'text-slate-700'}`}>{label}</span>
             <div className="flex items-center gap-2">
-              <input type="time" value={valueOf(wd)}
-                onChange={e => setEdits(prev => ({ ...prev, [wd]: e.target.value }))}
-                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <TimeSelect value={valueOf(wd)} onChange={v => setEdits(prev => ({ ...prev, [wd]: v }))} />
               <span className="text-xs text-slate-400 w-14 text-right">
                 {valueOf(wd) ? '' : `기본 ${getStartTime(target, schedules)}`}
               </span>
@@ -80,6 +103,9 @@ export default function WeekdayScheduleEditor({ targets, schedules, weekdaySched
         className="w-full py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-40">
         {saving ? '저장 중...' : '저장'}
       </button>
+      {!dirty && (
+        <p className="text-xs text-slate-400 text-center -mt-1">바꿀 요일의 시간을 선택하면 저장할 수 있어요. 안 건드린 요일은 기본 시간 그대로예요.</p>
+      )}
     </div>
   );
 }
