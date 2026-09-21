@@ -1,5 +1,12 @@
 import { supabase } from './supabase';
 import type { Word, WordList, TestResult, TestAnswer } from '../types';
+import {
+  getStartTime, resolveStartTime,
+  type ClassSchedule, type WeekdaySchedule, type OpenDate, type SpecialDates,
+} from './schedule';
+
+export { getStartTime, resolveStartTime };
+export type { ClassSchedule, WeekdaySchedule, OpenDate, SpecialDates };
 
 // ── helpers ──────────────────────────────────────────────
 
@@ -908,8 +915,6 @@ export async function setSmsTestPhone(phone: string): Promise<void> {
   );
 }
 
-export interface OpenDate { date: string; time?: string; classes?: string[]; }
-
 export async function getSpecialDates(): Promise<{ closed: string[]; open: OpenDate[] }> {
   const { data } = await supabase.from('school_settings').select('key,value').in('key', ['closed_dates', 'open_dates']);
   const map: Record<string, string> = {};
@@ -969,11 +974,6 @@ export function calcDistance(lat1: number, lon1: number, lat2: number, lon2: num
 
 // ── class schedules ───────────────────────────────────────
 
-export interface ClassSchedule {
-  gradeKey: string;  // '1학년', '2학년', '3학년'
-  startTime: string; // 'HH:MM'
-}
-
 export async function fetchClassSchedules(): Promise<ClassSchedule[]> {
   const { data, error } = await supabase
     .from('class_schedules')
@@ -1002,40 +1002,34 @@ export async function deleteClassSchedule(gradeKey: string): Promise<void> {
   if (error) throw error;
 }
 
-const GRADE_DEFAULTS: Record<string, string> = {
-  '중등부 1학년': '16:30',
-  '중등부 2학년': '18:30',
-  '중등부 3학년': '16:30',
-  '고등부 1학년': '16:30',
-  '고등부 2학년': '16:30',
-  '고등부 3학년': '16:30',
-};
+// ── 요일별 시간 (class_weekday_schedules) ─────────────────
+// 테이블이 아직 없어도 앱이 깨지지 않도록 조회 실패 시 빈 배열
 
-function classToGradeKey(className: string): string | null {
-  const gradeMatch = className.match(/(\d+)학년/);
-  if (!gradeMatch) return null;
-  const grade = `${gradeMatch[1]}학년`;
-  const isHigh = /고등|고교/.test(className);
-  return `${isHigh ? '고등부' : '중등부'} ${grade}`;
+export async function fetchWeekdaySchedules(): Promise<WeekdaySchedule[]> {
+  const { data, error } = await supabase.from('class_weekday_schedules').select('*');
+  if (error) return [];
+  return (data ?? []).map(row => ({
+    gradeKey: row.grade_key as string,
+    weekday: row.weekday as number,
+    startTime: row.start_time as string,
+  }));
 }
 
-export function getStartTime(className: string, schedules: ClassSchedule[]): string {
-  // 반별 개별 설정 우선 (같은 학년이라도 시간대가 다른 반 대응)
-  const exact = schedules.find(s => s.gradeKey === className);
-  if (exact) return exact.startTime;
+export async function upsertWeekdaySchedule(gradeKey: string, weekday: number, startTime: string): Promise<void> {
+  const { error } = await supabase
+    .from('class_weekday_schedules')
+    .upsert({ grade_key: gradeKey, weekday, start_time: startTime, updated_at: new Date().toISOString() },
+      { onConflict: 'grade_key,weekday' });
+  if (error) throw error;
+}
 
-  const key = classToGradeKey(className);
-  if (!key) return '16:30';
-  // 신 형식 먼저 ('중등부 1학년')
-  const schedule = schedules.find(s => s.gradeKey === key);
-  if (schedule) return schedule.startTime;
-  // 구 형식 호환 ('1학년') — DB 마이그레이션 전까지 폴백
-  const gradeMatch = className.match(/(\d+)학년/);
-  if (gradeMatch) {
-    const old = schedules.find(s => s.gradeKey === `${gradeMatch[1]}학년`);
-    if (old) return old.startTime;
-  }
-  return GRADE_DEFAULTS[key] ?? '16:30';
+export async function deleteWeekdaySchedule(gradeKey: string, weekday: number): Promise<void> {
+  const { error } = await supabase
+    .from('class_weekday_schedules')
+    .delete()
+    .eq('grade_key', gradeKey)
+    .eq('weekday', weekday);
+  if (error) throw error;
 }
 
 // 현재 시각(KST)이 수업 시작 시간보다 늦으면 지각
@@ -1063,26 +1057,24 @@ export async function autoMarkAbsent(sendSms = false): Promise<void> {
   const AUTO_DELAY_MIN = 10;
   const isWeekend = kstNow.getUTCDay() === 0 || kstNow.getUTCDay() === 6;
 
-  const { closed, open } = await getSpecialDates();
-  if (closed.includes(today)) return; // 휴원일
-  const openEntry = open.find(o => o.date === today);
-  if (isWeekend && !openEntry) return; // 주말인데 보강 등록 안 됨
+  const special = await getSpecialDates();
+  if (special.closed.includes(today)) return; // 휴원일
+  if (isWeekend && !special.open.some(o => o.date === today)) return; // 주말인데 보강 등록 안 됨
 
-  const [att, stu, sch] = await Promise.all([
+  const [att, stu, sch, wsch] = await Promise.all([
     fetchAttendanceByDate(today),
     fetchStudents(),
     fetchClassSchedules(),
+    fetchWeekdaySchedules(),
   ]);
 
   for (const student of stu) {
     if (!student.className) continue;
     if (/고등|고교/.test(student.className)) continue;
 
-    // 보강일에 반이 지정된 경우, 해당 반이 아니면 오늘 수업 없음
-    const appliesToday = !openEntry?.classes?.length || openEntry.classes.includes(student.className);
-    if (isWeekend && !appliesToday) continue;
-
-    const startTime = (appliesToday && openEntry?.time) || getStartTime(student.className, sch);
+    // 오늘 이 반 수업 시작 시간 (휴강·요일별·날짜별 예외 반영). null이면 오늘 수업 없음
+    const startTime = resolveStartTime(student.className, today, { schedules: sch, weekdaySchedules: wsch, special });
+    if (!startTime) continue;
     const [h, m] = startTime.split(':').map(Number);
     if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue;
     if (att.find(a => a.studentName === student.name)) continue;

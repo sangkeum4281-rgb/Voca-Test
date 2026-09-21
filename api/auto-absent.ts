@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'crypto';
+import {
+  resolveStartTime,
+  type ClassSchedule, type WeekdaySchedule, type OpenDate,
+} from '../src/lib/schedule.js';
 
 function ncpSign(timestamp: string): string {
   const serviceId = process.env.NCP_SERVICE_ID!;
@@ -36,30 +40,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const GRADE_DEFAULTS: Record<string, string> = {
-  '중등부 1학년': '16:30',
-  '중등부 2학년': '18:30',
-  '중등부 3학년': '16:30',
-  '고등부 1학년': '16:30',
-  '고등부 2학년': '16:30',
-  '고등부 3학년': '16:30',
-};
-
 function isWeekendKST(): boolean {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCDay();
   return d === 0 || d === 6;
-}
-
-function getStartTime(className: string, scheduleMap: Record<string, string>): string {
-  // 반별 개별 설정 우선 (같은 학년이라도 시간대가 다른 반 대응)
-  if (scheduleMap[className]) return scheduleMap[className];
-
-  const gradeMatch = className.match(/(\d+)학년/);
-  if (!gradeMatch) return '16:30';
-  const grade = `${gradeMatch[1]}학년`;
-  const isHigh = /고등|고교/.test(className);
-  const newKey = `${isHigh ? '고등부' : '중등부'} ${grade}`;
-  return scheduleMap[newKey] ?? scheduleMap[grade] ?? GRADE_DEFAULTS[newKey] ?? '16:30';
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -81,24 +64,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const smsEnabled = sm['auto_absent_sms'] === 'true';
   const testPhone = (sm['sms_test_phone'] ?? '').replace(/[^0-9]/g, '');
   const closedDates = sm['closed_dates'] ? sm['closed_dates'].split(',').filter(Boolean) : [];
-  let openDates: { date: string; time?: string; classes?: string[] }[] = [];
+  let openDates: OpenDate[] = [];
   try { openDates = sm['open_dates'] ? JSON.parse(sm['open_dates']) : []; } catch { openDates = []; }
-  const openEntry = openDates.find(o => o.date === today);
+  const special = { closed: closedDates, open: openDates };
 
   if (closedDates.includes(today)) return res.json({ skipped: 'closed' });
-  if (isWeekend && !openEntry) return res.json({ skipped: 'weekend' });
+  if (isWeekend && !openDates.some(o => o.date === today)) return res.json({ skipped: 'weekend' });
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const nowMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes();
   const AUTO_DELAY_MIN = 10;
 
-  const [{ data: students }, { data: att }, { data: schedules }] = await Promise.all([
+  const [{ data: students }, { data: att }, { data: schedules }, { data: weekdayRows }] = await Promise.all([
     supabase.from('students').select('*'),
     supabase.from('attendance').select('student_name').eq('date', today),
     supabase.from('class_schedules').select('*'),
+    supabase.from('class_weekday_schedules').select('*'), // 테이블이 없으면 data=null → 요일별 설정 없음으로 처리
   ]);
 
-  const scheduleMap: Record<string, string> = {};
-  for (const s of schedules ?? []) scheduleMap[s.grade_key] = s.start_time;
+  const classSchedules: ClassSchedule[] = (schedules ?? []).map(r => ({
+    gradeKey: r.grade_key as string, startTime: r.start_time as string,
+  }));
+  const weekdaySchedules: WeekdaySchedule[] = (weekdayRows ?? []).map(r => ({
+    gradeKey: r.grade_key as string, weekday: r.weekday as number, startTime: r.start_time as string,
+  }));
 
   const checkedIn = new Set((att ?? []).map((a: { student_name: string }) => a.student_name));
 
@@ -109,11 +97,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const className = student.class_name ?? '';
     if (!className || /고등|고교/.test(className)) continue;
 
-    // 보강일에 반이 지정된 경우, 해당 반이 아니면 오늘 수업 없음 (예: 중등부 1학년은 주말 보강 미참여)
-    const appliesToday = !openEntry?.classes?.length || openEntry.classes.includes(className);
-    if (isWeekend && !appliesToday) continue;
-
-    const startTime = (appliesToday && openEntry?.time) || getStartTime(className, scheduleMap);
+    // 이 반의 오늘 시작 시간 (휴강·보강 대상 반·요일별·날짜별 예외 반영). null이면 오늘 수업 없음
+    const startTime = resolveStartTime(className, today, { schedules: classSchedules, weekdaySchedules, special });
+    if (!startTime) continue;
     const [h, m] = startTime.split(':').map(Number);
     if (nowMin < h * 60 + m + AUTO_DELAY_MIN) continue;
     if (checkedIn.has(student.name)) continue;

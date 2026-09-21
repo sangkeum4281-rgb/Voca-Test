@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   fetchStudents, upsertAttendance, fetchAttendanceByDate, sendAligoAttendanceSms,
-  fetchClassSchedules, getStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil,
-  getSpecialDates, type OpenDate,
-  type Student, type ClassSchedule,
+  fetchClassSchedules, fetchWeekdaySchedules, resolveStartTime, checkIfLate, calcMinutesLate, getSchoolLocation, calcDistance, getGpsBypassUntil,
+  getSpecialDates,
+  type Student, type ClassSchedule, type WeekdaySchedule, type SpecialDates,
 } from '../lib/db';
 import { CheckCircle, Loader } from 'lucide-react';
 
@@ -15,6 +15,7 @@ type GeoState = 'checking' | 'ok' | 'denied' | 'out_of_range' | 'no_school_set';
 export default function Checkin() {
   const [students, setStudents] = useState<Student[]>([]);
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
+  const [weekdaySchedules, setWeekdaySchedules] = useState<WeekdaySchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [geoState, setGeoState] = useState<GeoState>('checking');
   const [checkedIn, setCheckedIn] = useState<Set<string>>(new Set());
@@ -23,7 +24,7 @@ export default function Checkin() {
   const [distance, setDistance] = useState<number | null>(null);
   const [nameInput, setNameInput] = useState(() => localStorage.getItem(STUDENT_NAME_KEY) ?? '');
   const [error, setError] = useState('');
-  const [openEntry, setOpenEntry] = useState<OpenDate | null>(null);
+  const [special, setSpecial] = useState<SpecialDates>({ closed: [], open: [] });
 
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const deviceKey = `checkin-${today}`;
@@ -38,15 +39,17 @@ export default function Checkin() {
 
   useEffect(() => {
     const loadData = async () => {
-      const [stu, att, sch, special] = await Promise.all([
+      const [stu, att, sch, wsch, sp] = await Promise.all([
         fetchStudents(),
         fetchAttendanceByDate(today),
         fetchClassSchedules().catch(() => []),
+        fetchWeekdaySchedules(),
         getSpecialDates().catch(() => ({ closed: [], open: [] })),
       ]);
-      setOpenEntry(special.open.find(o => o.date === today) ?? null);
+      setSpecial(sp);
       setStudents(stu);
       setSchedules(sch);
+      setWeekdaySchedules(wsch);
       setCheckedIn(new Set(
         att.filter(a => a.status === 'present' || a.status === 'late').map(a => a.studentName)
       ));
@@ -107,10 +110,10 @@ export default function Checkin() {
 
     setProcessing(true);
     try {
-      const appliesToday = !openEntry?.classes?.length || openEntry.classes.includes(student.className);
-      const startTime = (appliesToday && openEntry?.time) || getStartTime(student.className, schedules);
-      const isLate = checkIfLate(startTime);
-      const minutesLate = isLate ? calcMinutesLate(startTime) : 0;
+      // 오늘 수업이 없는 반(휴강 등)이 체크인하면 지각 판정 없이 출석 처리
+      const startTime = resolveStartTime(student.className, today, { schedules, weekdaySchedules, special });
+      const isLate = startTime ? checkIfLate(startTime) : false;
+      const minutesLate = startTime && isLate ? calcMinutesLate(startTime) : 0;
       const status = isLate ? 'late' : 'present';
       const note = isLate ? `${minutesLate}분` : '';
       await upsertAttendance({ studentName: student.name, date: today, status, note });

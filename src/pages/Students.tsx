@@ -4,16 +4,17 @@ import type { TestType } from '../types';
 import {
   fetchStudents, addStudent, deleteStudent, updateStudentPhone, updateStudentGpsExempt, moveStudentClass, sendSmsToStudents,
   fetchWordLists, fetchAllWeeklyResults, fetchAttendanceByWeek,
-  fetchClassSchedules, upsertClassSchedule, deleteClassSchedule, getStartTime, setSchoolLocation, getSchoolLocation,
+  fetchClassSchedules, fetchWeekdaySchedules, upsertClassSchedule, deleteClassSchedule, getStartTime, setSchoolLocation, getSchoolLocation,
   getGpsBypassUntil, setGpsBypassUntil, getAutoAbsentSms, setAutoAbsentSms,
   getSmsTestPhone, setSmsTestPhone, getSpecialDates, setSpecialDates,
   fetchAllClassNotices, fetchClassNoticesByMonth, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS, sortClasses,
   setNoticeOrder,
   fetchExamScores, upsertExamScore, deleteExamScore, EXAM_SUBJECTS,
-  type Student, type AttendanceRecord, type ClassSchedule, type ClassNotice, type ExamScore,
+  type Student, type AttendanceRecord, type ClassSchedule, type WeekdaySchedule, type ClassNotice, type ExamScore,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import WeekdayScheduleEditor from '../components/WeekdaySchedule';
 import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, Printer, Trophy, History } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
@@ -863,6 +864,7 @@ export default function Students() {
   const [moving, setMoving] = useState(false);
   const rosterSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
+  const [weekdaySchedules, setWeekdaySchedules] = useState<WeekdaySchedule[]>([]);
   const [scheduleEdits, setScheduleEdits] = useState<Record<string, string>>({});
   const [schoolPos, setSchoolPos] = useState<{ lat: number; lng: number } | null>(null);
   const [savingPos, setSavingPos] = useState(false);
@@ -905,10 +907,11 @@ export default function Students() {
 
   useEffect(() => {
     if (!isTeacher) { navigate('/'); return; }
-    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms(), getSmsTestPhone(), getSpecialDates()]).then(([s, wl, sch, loc, bypassUntil, autoSms, testPhone, special]) => {
+    Promise.all([fetchStudents(), fetchWordLists(), fetchClassSchedules(), fetchWeekdaySchedules(), getSchoolLocation(), getGpsBypassUntil(), getAutoAbsentSms(), getSmsTestPhone(), getSpecialDates()]).then(([s, wl, sch, wsch, loc, bypassUntil, autoSms, testPhone, special]) => {
       setStudents(s);
       setWordLists(wl);
       setSchedules(sch);
+      setWeekdaySchedules(wsch);
       if (loc) setSchoolPos(loc);
       if (bypassUntil !== null && Date.now() < bypassUntil) setGpsBypass(true);
       setAutoAbsentSmsState(autoSms);
@@ -1594,9 +1597,17 @@ export default function Students() {
             </div>
           )}
 
+          {/* 요일별 시간 (같은 학년/반이라도 요일마다 시간이 다를 때) */}
+          <WeekdayScheduleEditor
+            targets={[...new Set([...['중등부', '고등부'].flatMap(d => ['1학년', '2학년', '3학년'].map(g => `${d} ${g}`)), ...classes])]}
+            schedules={schedules}
+            weekdaySchedules={weekdaySchedules}
+            onChange={setWeekdaySchedules}
+          />
+
           {/* 휴원일 / 보강일 설정 */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
-            <p className="text-sm font-semibold text-slate-700">휴원일 / 보강일 설정</p>
+            <p className="text-sm font-semibold text-slate-700">휴원일 / 보강 · 날짜별 시간 / 반 휴강</p>
             <div className="flex gap-2">
               <input type="date" value={specialDateInput} onChange={e => setSpecialDateInput(e.target.value)}
                 className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
@@ -1610,17 +1621,31 @@ export default function Students() {
             <div className="flex gap-2 items-center">
               <input type="time" value={specialTimeInput} onChange={e => setSpecialTimeInput(e.target.value)}
                 placeholder="보강 시간 (선택)" className="w-32 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-              <p className="text-xs text-slate-400">시간 미입력 시 기본 수업 시간 적용</p>
+              <p className="text-xs text-slate-400">시간 미입력 시 평소 시간 적용<br />평일 = 그날만 시간 변경, 주말 = 보강</p>
+            </div>
+            <div className="flex gap-2">
               <button onClick={async () => {
-                if (!specialDateInput || openDates.find(o => o.date === specialDateInput)) return;
-                const next = [...openDates, {
+                if (!specialDateInput) return;
+                const classes = specialClassesInput.size > 0 ? [...specialClassesInput].sort() : undefined;
+                const sameKey = (o: import('../lib/db').OpenDate) => o.date === specialDateInput && [...(o.classes ?? [])].sort().join() === (classes ?? []).join();
+                if (openDates.some(o => sameKey(o) && !o.off)) return;
+                const next = [...openDates.filter(o => !sameKey(o)), {
                   date: specialDateInput,
                   time: specialTimeInput || undefined,
-                  classes: specialClassesInput.size > 0 ? [...specialClassesInput] : undefined,
+                  classes,
                 }].sort((a,b) => a.date.localeCompare(b.date));
                 await setSpecialDates(closedDates, next);
                 setOpenDates(next); setSpecialDateInput(''); setSpecialTimeInput(''); setSpecialClassesInput(new Set());
-              }} className="ml-auto px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 whitespace-nowrap">보강일 추가</button>
+              }} className="flex-1 px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 whitespace-nowrap">보강 · 시간 변경 추가</button>
+              <button onClick={async () => {
+                if (!specialDateInput || specialClassesInput.size === 0) { alert('휴강할 반을 선택해주세요. (전체 휴원은 "휴원일" 버튼)'); return; }
+                const classes = [...specialClassesInput].sort();
+                const sameKey = (o: import('../lib/db').OpenDate) => o.date === specialDateInput && [...(o.classes ?? [])].sort().join() === classes.join();
+                const next = [...openDates.filter(o => !sameKey(o)), { date: specialDateInput, classes, off: true }]
+                  .sort((a,b) => a.date.localeCompare(b.date));
+                await setSpecialDates(closedDates, next);
+                setOpenDates(next); setSpecialDateInput(''); setSpecialTimeInput(''); setSpecialClassesInput(new Set());
+              }} className="px-3 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 whitespace-nowrap">반 휴강</button>
             </div>
             {classes.length > 0 && (
               <div>
@@ -1664,15 +1689,16 @@ export default function Students() {
             )}
             {openDates.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-blue-500 mb-1">보강일 (주말 수업)</p>
+                <p className="text-xs font-semibold text-blue-500 mb-1">보강 · 시간 변경 · 반 휴강</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {openDates.map(o => (
-                    <span key={o.date} className="flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-600 text-xs px-2 py-1 rounded-full">
-                      {o.date}{o.time ? ` ${o.time}` : ''}{o.classes?.length ? ` · ${o.classes.join(', ')}` : ''}
+                  {openDates.map((o, i) => (
+                    <span key={`${o.date}-${i}`} className={`flex items-center gap-1 border text-xs px-2 py-1 rounded-full ${
+                      o.off ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-blue-50 border-blue-200 text-blue-600'}`}>
+                      {o.date}{o.off ? ' 휴강' : o.time ? ` ${o.time}` : ''}{o.classes?.length ? ` · ${o.classes.join(', ')}` : ''}
                       <button onClick={async () => {
-                        const next = openDates.filter(x => x.date !== o.date);
+                        const next = openDates.filter(x => x !== o);
                         await setSpecialDates(closedDates, next); setOpenDates(next);
-                      }} className="text-blue-400 hover:text-blue-600 font-bold">×</button>
+                      }} className={`font-bold ${o.off ? 'text-orange-400 hover:text-orange-600' : 'text-blue-400 hover:text-blue-600'}`}>×</button>
                     </span>
                   ))}
                 </div>
