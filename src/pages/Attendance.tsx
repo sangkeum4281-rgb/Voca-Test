@@ -20,7 +20,10 @@ const ATTENDANCE_ALERT_THRESHOLD = 5;
 
 type TeacherTab = 'daily' | 'weekly' | 'monthly';
 
-function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
+// toISOString()은 UTC 기준이라 KST 자정이 전날로 밀리므로 로컬 날짜로 포맷
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function todayKST() { return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10); }
 
 const STUDENT_NAME_KEY = 'vocab-student-name';
