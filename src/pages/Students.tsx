@@ -1134,7 +1134,7 @@ export default function Students() {
                   다운로드
                 </button>
                 <button onClick={() => {
-                  const key = `checkin-${new Date().toISOString().slice(0, 10)}`;
+                  const key = `checkin-${new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)}`;
                   localStorage.removeItem(key);
                   alert('체크인 기록 초기화됨');
                 }}

@@ -480,7 +480,7 @@ export async function deleteStudent(id: string): Promise<void> {
   if (error) throw error;
   // 오늘 출결 기록도 삭제
   if (student?.name) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
     await supabase.from('attendance').delete()
       .eq('student_name', student.name)
       .eq('date', today);
@@ -591,11 +591,14 @@ export async function fetchAttendanceByWeek(): Promise<AttendanceRecord[]> {
   const weekStart = getWeekStart();
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
+  // toISOString()은 UTC 기준이라 KST 자정이 전날로 밀리므로 로컬 날짜로 포맷
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const { data, error } = await supabase
     .from('attendance')
     .select('*')
-    .gte('date', weekStart.toISOString().slice(0, 10))
-    .lte('date', weekEnd.toISOString().slice(0, 10));
+    .gte('date', ymd(weekStart))
+    .lte('date', ymd(weekEnd));
   if (error) throw error;
   return (data ?? []).map(row => ({
     id: row.id as string,
