@@ -485,6 +485,28 @@ export async function deleteStudent(id: string): Promise<void> {
       .eq('student_name', student.name)
       .eq('date', today);
   }
+  await supabase.from('school_settings').delete().eq('key', `${STUDENT_NOTE_PREFIX}${id}`);
+}
+
+// ── student notes (학생 특이사항) ───────────────────────────
+// 별도 테이블 없이 school_settings 에 학생 id 별 키로 저장한다 (student_note_<학생 id>)
+
+const STUDENT_NOTE_PREFIX = 'student_note_';
+
+export async function fetchStudentNotes(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from('school_settings').select('key,value').like('key', `${STUDENT_NOTE_PREFIX}%`);
+  if (error) throw error;
+  const notes: Record<string, string> = {};
+  for (const row of data ?? []) notes[(row.key as string).slice(STUDENT_NOTE_PREFIX.length)] = (row.value as string) ?? '';
+  return notes;
+}
+
+export async function setStudentNote(studentId: string, note: string): Promise<void> {
+  const key = `${STUDENT_NOTE_PREFIX}${studentId}`;
+  const { error } = note.trim()
+    ? await supabase.from('school_settings').upsert({ key, value: note.trim() }, { onConflict: 'key' })
+    : await supabase.from('school_settings').delete().eq('key', key);
+  if (error) throw error;
 }
 
 // ── announcements ─────────────────────────────────────────

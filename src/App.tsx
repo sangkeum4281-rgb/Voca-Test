@@ -14,6 +14,7 @@ import QnA from './pages/QnA';
 import Checkin from './pages/Checkin';
 import CheckinQR from './pages/CheckinQR';
 import Parent from './pages/Parent';
+import Manual from './pages/Manual';
 import './index.css';
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
                 <Route path="/qna" element={<QnA />} />
                 <Route path="/checkin" element={<Checkin />} />
                 <Route path="/checkin-qr" element={<CheckinQR />} />
+                <Route path="/manual" element={<Manual />} />
               </Routes>
             </Layout>
           } />

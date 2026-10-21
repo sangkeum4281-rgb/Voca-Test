@@ -11,7 +11,7 @@ import {
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send, Bell, MessageSquare, Trash2 } from 'lucide-react';
+import { BookOpen, Pin, MessageCircle, CheckCircle, Clock, XCircle, ArrowRight, Loader, Users, Send, Bell, MessageSquare, Trash2, BookOpenText } from 'lucide-react';
 
 function isWeekend() { const d = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCDay(); return d === 0 || d === 6; }
 
@@ -139,6 +139,18 @@ export default function Home() {
             <p className="text-xs text-indigo-600">전체 원생</p>
           </Link>
         </div>
+      )}
+
+      {/* 사이트 사용 설명서 */}
+      {isTeacher && (
+        <Link to="/manual" className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-5 py-3.5 shadow-sm hover:bg-slate-50 transition-colors">
+          <BookOpenText size={18} className="text-indigo-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-700">사이트 사용 설명서</p>
+            <p className="text-xs text-slate-400">기능별 사용법, 자주 생기는 문제, 관리 계정 안내</p>
+          </div>
+          <ArrowRight size={14} className="text-slate-300" />
+        </Link>
       )}
 
       {/* 당일 결석/지각 현황 — 전체 공개 */}

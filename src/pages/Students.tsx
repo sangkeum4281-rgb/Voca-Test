@@ -10,12 +10,13 @@ import {
   fetchAllClassNotices, fetchClassNoticesByMonth, addClassNotice, deleteClassNotice, NOTICE_SUBJECTS, sortClasses,
   setNoticeOrder,
   fetchExamScores, upsertExamScore, deleteExamScore, EXAM_SUBJECTS,
+  fetchStudentNotes, setStudentNote,
   type Student, type AttendanceRecord, type ClassSchedule, type WeekdaySchedule, type ClassNotice, type ExamScore,
 } from '../lib/db';
 import type { WordList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import WeekdayScheduleEditor from '../components/WeekdaySchedule';
-import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, Printer, Trophy, History } from 'lucide-react';
+import { Plus, Trash2, Loader, CheckCircle, XCircle, Clock, Users, BarChart2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Phone, Pencil, AlarmClock, Bell, GripVertical, GraduationCap, TrendingUp, TrendingDown, Minus, Printer, Trophy, History, NotebookPen } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -87,7 +88,7 @@ function DroppableClassGroup({ id, children }: { id: string; children: React.Rea
   );
 }
 
-type Tab = 'roster' | 'weekly' | 'schedule' | 'notices' | 'grades';
+type Tab = 'roster' | 'weekly' | 'schedule' | 'notices' | 'grades' | 'studentNotes';
 type GradesSubTab = 'input' | 'trend' | 'rank';
 
 // 성적 %(score/maxScore) 계산 — 그래프 막대 길이 스케일 통일용
@@ -842,6 +843,141 @@ interface StudentStatus {
   attAbsent: number;
 }
 
+// 반별 학생 특이사항 — 입력란을 벗어나면 자동 저장, 반별/전체 인쇄
+function NotesTab({ students, classes }: { students: Student[]; classes: string[] }) {
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [selectedClass, setSelectedClass] = useState(classes[0] ?? '');
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [onlyWithNotes, setOnlyWithNotes] = useState(false);
+
+  useEffect(() => {
+    fetchStudentNotes()
+      .then(setNotes)
+      .catch(e => alert(`특이사항을 불러오지 못했습니다.\n${(e as Error)?.message ?? String(e)}`))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedClass && classes.length > 0) setSelectedClass(classes[0]);
+  }, [classes, selectedClass]);
+
+  const handleSave = async (studentId: string) => {
+    const draft = drafts[studentId];
+    if (draft === undefined || draft.trim() === (notes[studentId] ?? '')) return;
+    setSavingId(studentId);
+    try {
+      await setStudentNote(studentId, draft);
+      setNotes(prev => {
+        const next = { ...prev };
+        if (draft.trim()) next[studentId] = draft.trim(); else delete next[studentId];
+        return next;
+      });
+      setDrafts(prev => { const next = { ...prev }; delete next[studentId]; return next; });
+    } catch (e) {
+      alert(`저장에 실패했습니다.\n${(e as Error)?.message ?? String(e)}`);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const printNotes = (targetClasses: string[]) => {
+    const sections = targetClasses.map(cls => {
+      const rows = students
+        .filter(s => s.className === cls)
+        .filter(s => !onlyWithNotes || notes[s.id])
+        .map(s => `
+          <tr>
+            <td style="width:90px;padding:8px;border:1px solid #cbd5e1;font-weight:bold;vertical-align:top;">${escapeHtml(s.name)}</td>
+            <td style="padding:8px;border:1px solid #cbd5e1;white-space:pre-wrap;vertical-align:top;min-height:28px;">${escapeHtml(notes[s.id] ?? '')}</td>
+          </tr>`).join('');
+      if (!rows) return '';
+      return `
+        <div style="margin-bottom:24px;break-inside:avoid;">
+          <h3 style="font-size:14px;font-weight:bold;color:#3730a3;margin:0 0 6px;">${escapeHtml(cls)}</h3>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">${rows}</table>
+        </div>`;
+    }).join('');
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>학생 특이사항</title>
+      <style>body{font-family:sans-serif;margin:0;padding:24px;color:#1e293b;}@media print{@page{margin:14mm;}}</style>
+      </head><body>
+        <h2 style="font-size:17px;font-weight:bold;margin-bottom:2px;">최강학원 학생 특이사항</h2>
+        <p style="font-size:12px;color:#64748b;margin-bottom:18px;">${new Date().toLocaleDateString('ko-KR')}</p>
+        ${sections || '<p style="color:#94a3b8;">인쇄할 내용이 없습니다.</p>'}
+        <script>window.onload=()=>window.print();</script>
+      </body></html>`);
+    win.document.close();
+  };
+
+  if (loading) {
+    return <div className="flex justify-center py-12"><Loader size={24} className="animate-spin text-indigo-400" /></div>;
+  }
+
+  const classStudents = students.filter(s => s.className === selectedClass);
+  const unsaved = Object.keys(drafts).some(id => drafts[id].trim() !== (notes[id] ?? ''));
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => printNotes([selectedClass])} disabled={!selectedClass || unsaved}
+          className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+          <Printer size={13} /> 이 반 인쇄
+        </button>
+        <button type="button" onClick={() => printNotes(classes)} disabled={classes.length === 0 || unsaved}
+          className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-40">
+          <Printer size={13} /> 전체 반 한번에 인쇄
+        </button>
+        <label className="flex items-center gap-1.5 text-xs text-slate-500 ml-auto cursor-pointer">
+          <input type="checkbox" checked={onlyWithNotes} onChange={e => setOnlyWithNotes(e.target.checked)} />
+          특이사항 있는 학생만 인쇄
+        </label>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {classes.map(c => {
+          const count = students.filter(s => s.className === c && notes[s.id]).length;
+          return (
+            <button key={c} type="button" onClick={() => setSelectedClass(c)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                selectedClass === c ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}>
+              {c}{count > 0 && <span className="ml-1 opacity-70">({count})</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {classStudents.length === 0 ? (
+        <p className="text-center text-slate-400 text-sm py-6">선택된 반에 학생이 없습니다</p>
+      ) : (
+        <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+          {classStudents.map(s => (
+            <div key={s.id} className="flex gap-3 px-4 py-3">
+              <span className="w-16 shrink-0 text-sm font-medium text-slate-700 pt-2">{s.name}</span>
+              <textarea
+                rows={2}
+                value={drafts[s.id] ?? notes[s.id] ?? ''}
+                onChange={e => setDrafts(prev => ({ ...prev, [s.id]: e.target.value }))}
+                onBlur={() => handleSave(s.id)}
+                placeholder="특이사항 (입력란을 벗어나면 자동 저장)"
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              <span className="w-4 shrink-0 pt-2">
+                {savingId === s.id && <Loader size={14} className="animate-spin text-indigo-400" />}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {unsaved && <p className="text-xs text-orange-500">저장되지 않은 내용이 있습니다. 입력란 밖을 누르면 저장됩니다.</p>}
+    </div>
+  );
+}
+
 export default function Students() {
   const { isTeacher } = useAuth();
   const navigate = useNavigate();
@@ -1077,7 +1213,7 @@ export default function Students() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-slate-200 overflow-x-auto [&>button]:shrink-0 [&>button]:whitespace-nowrap">
         <button onClick={() => setTab('roster')}
           className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
             tab === 'roster' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -1107,6 +1243,12 @@ export default function Students() {
             tab === 'grades' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}>
           <GraduationCap size={15} /> 성적
+        </button>
+        <button onClick={() => setTab('studentNotes')}
+          className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'studentNotes' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <NotebookPen size={15} /> 특이사항
         </button>
       </div>
 
@@ -1745,6 +1887,8 @@ export default function Students() {
       />}
       {/* ── 성적 탭 ── */}
       {tab === 'grades' && <GradesTab students={students} classes={classes} />}
+      {/* ── 특이사항 탭 ── */}
+      {tab === 'studentNotes' && <NotesTab students={students} classes={classes} />}
     </div>
       {smsMode && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-50">
