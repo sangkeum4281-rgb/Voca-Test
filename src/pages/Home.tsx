@@ -147,7 +147,7 @@ export default function Home() {
           <BookOpenText size={18} className="text-indigo-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-slate-700">사이트 사용 설명서</p>
-            <p className="text-xs text-slate-400">기능별 사용법, 자주 생기는 문제, 관리 계정 안내</p>
+            <p className="text-xs text-slate-400">기능별 사용법, 자주 생기는 문제</p>
           </div>
           <ArrowRight size={14} className="text-slate-300" />
         </Link>
