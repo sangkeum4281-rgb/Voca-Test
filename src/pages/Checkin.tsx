@@ -161,7 +161,7 @@ export default function Checkin() {
     <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">최강학원</h1>
+          <h1 className="text-3xl font-bold text-white">데모학원</h1>
           <p className="text-indigo-200 text-sm mt-1">
             {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
           </p>

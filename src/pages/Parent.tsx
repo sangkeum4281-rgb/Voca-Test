@@ -119,7 +119,7 @@ export default function Parent() {
     <div className="min-h-screen bg-slate-50">
       {/* 헤더 */}
       <div className="bg-indigo-700 text-white px-4 py-4 sticky top-0 z-10">
-        <h1 className="text-lg font-bold">최강학원 학부모 페이지</h1>
+        <h1 className="text-lg font-bold">데모학원 학부모 페이지</h1>
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6 space-y-5">

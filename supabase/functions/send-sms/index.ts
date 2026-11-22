@@ -51,7 +51,7 @@ serve(async (req) => {
     const statusText = status === 'late' ? '지각' : '결석';
     const dateStr    = new Date(date + 'T00:00:00+09:00')
       .toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' });
-    const text = `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${statusText}했습니다.`;
+    const text = `[데모학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${statusText}했습니다.`;
 
     const res = await fetch('https://api.solapi.com/messages/v4/send', {
       method: 'POST',

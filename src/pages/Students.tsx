@@ -288,7 +288,7 @@ function GradeTrend({ students, classes, scores }: { students: Student[]; classe
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(student.name)} 성적표</title>
       <style>body{font-family:sans-serif;margin:0;padding:24px;color:#1e293b;}@media print{@page{margin:14mm;}}</style>
       </head><body>
-        <h2 style="font-size:17px;font-weight:bold;margin-bottom:2px;">최강학원 성적 리포트</h2>
+        <h2 style="font-size:17px;font-weight:bold;margin-bottom:2px;">데모학원 성적 리포트</h2>
         <p style="font-size:12px;color:#64748b;margin-bottom:6px;">${escapeHtml(student.className)} · ${escapeHtml(student.name)} · ${new Date().toLocaleDateString('ko-KR')}</p>
         <p style="font-size:10px;color:#94a3b8;margin-bottom:18px;">■ 학생 점수 &nbsp;&nbsp;<span style="color:#f59e0b;">- - 반 평균</span> &nbsp;&nbsp;<span style="color:#0891b2;">···· 학원 전체 평균</span></p>
         ${sections}
@@ -905,7 +905,7 @@ function NotesTab({ students, classes }: { students: Student[]; classes: string[
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>학생 특이사항</title>
       <style>body{font-family:sans-serif;margin:0;padding:24px;color:#1e293b;}@media print{@page{margin:14mm;}}</style>
       </head><body>
-        <h2 style="font-size:17px;font-weight:bold;margin-bottom:2px;">최강학원 학생 특이사항</h2>
+        <h2 style="font-size:17px;font-weight:bold;margin-bottom:2px;">데모학원 학생 특이사항</h2>
         <p style="font-size:12px;color:#64748b;margin-bottom:18px;">${new Date().toLocaleDateString('ko-KR')}</p>
         ${sections || '<p style="color:#94a3b8;">인쇄할 내용이 없습니다.</p>'}
         <script>window.onload=()=>window.print();</script>
@@ -1028,7 +1028,7 @@ export default function Students() {
     const blob = await res.blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = '최강학원_체크인QR.png';
+    a.download = '데모학원_체크인QR.png';
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -1896,7 +1896,7 @@ export default function Students() {
             <div className="flex gap-2">
               <input
                 className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                placeholder="메시지 입력 ([최강학원] 자동 추가)"
+                placeholder="메시지 입력 ([데모학원] 자동 추가)"
                 value={smsText}
                 onChange={e => setSmsText(e.target.value)}
               />
@@ -1905,7 +1905,7 @@ export default function Students() {
                 onClick={async () => {
                   if (!confirm(`${selectedIds.size}명에게 문자를 보낼까요?`)) return;
                   setSmsSending(true);
-                  const { sent, failed } = await sendSmsToStudents([...selectedIds], `[최강학원] ${smsText.trim()}`);
+                  const { sent, failed } = await sendSmsToStudents([...selectedIds], `[데모학원] ${smsText.trim()}`);
                   setSmsSending(false);
                   alert(`발송 완료: ${sent}명 성공, ${failed}명 실패`);
                   setSmsMode(false);

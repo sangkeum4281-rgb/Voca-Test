@@ -250,7 +250,7 @@ export default function Attendance() {
       }).join('');
       return `
         <div style="page-break-after:always;padding:16px;">
-          <h2 style="font-size:16px;font-weight:bold;margin-bottom:4px;">최강학원 ${year}년 ${month}월 출결 현황</h2>
+          <h2 style="font-size:16px;font-weight:bold;margin-bottom:4px;">데모학원 ${year}년 ${month}월 출결 현황</h2>
           <h3 style="font-size:13px;color:#4338ca;margin-bottom:8px;">${cls}</h3>
           <table style="border-collapse:collapse;font-size:11px;width:100%;">
             <thead><tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">

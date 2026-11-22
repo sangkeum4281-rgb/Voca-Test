@@ -37,7 +37,7 @@ export default function CheckinQR() {
   return (
     <div className="min-h-screen bg-indigo-700 flex flex-col items-center justify-center gap-6 p-6 select-none">
       <div className="text-center">
-        <h1 className="text-4xl font-bold text-white">최강학원</h1>
+        <h1 className="text-4xl font-bold text-white">데모학원</h1>
         <p className="text-indigo-200 text-lg mt-1">출석 체크인</p>
       </div>
 

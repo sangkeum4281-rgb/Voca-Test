@@ -344,8 +344,8 @@ export async function sendAttendanceSms(studentName: string, status: 'late' | 'a
       return m > 0 ? `${h}시간 ${m}분 지각` : `${h}시간 지각`;
     })();
     const text = status === 'present'
-      ? `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 학원에 도착했습니다.`
-      : `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${status === 'late' ? lateStr : '결석'}했습니다.`;
+      ? `[데모학원] ${studentName} 학생이 오늘(${dateStr}) 학원에 도착했습니다.`
+      : `[데모학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${status === 'late' ? lateStr : '결석'}했습니다.`;
 
     const res = await fetch('https://api.solapi.com/messages/v4/send', {
       method: 'POST',
@@ -403,8 +403,8 @@ export async function sendAligoAttendanceSms(
     return m > 0 ? `${h}시간 ${m}분 지각` : `${h}시간 지각`;
   })();
   const text = status === 'present'
-    ? `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 학원에 도착했습니다.`
-    : `[최강학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${status === 'late' ? lateStr : '결석'}했습니다.`;
+    ? `[데모학원] ${studentName} 학생이 오늘(${dateStr}) 학원에 도착했습니다.`
+    : `[데모학원] ${studentName} 학생이 오늘(${dateStr}) 수업에 ${status === 'late' ? lateStr : '결석'}했습니다.`;
   return aligoPost(to, text);
 }
 

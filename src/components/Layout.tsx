@@ -28,7 +28,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <header className="bg-indigo-700 text-white shadow-lg sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="text-lg font-bold tracking-tight hover:opacity-90">
-            최강학원
+            데모학원
           </Link>
 
           {/* 데스크탑 nav */}
@@ -97,7 +97,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       <footer className="hidden md:block text-center py-4 text-sm text-slate-400 border-t border-slate-200">
-        최강학원
+        데모학원
       </footer>
     </div>
   );

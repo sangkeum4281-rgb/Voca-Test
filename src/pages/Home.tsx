@@ -94,7 +94,7 @@ export default function Home() {
     if (isWeekend()) { alert('주말에는 문자를 발송할 수 없습니다.'); return; }
     if (!confirm(`전체 학부모에게 문자를 발송하시겠습니까?\n\n${noticeText}`)) return;
     setNoticeSending(true);
-    const { sent, failed } = await sendAligoBulkSms(`[최강학원] ${noticeText}`);
+    const { sent, failed } = await sendAligoBulkSms(`[데모학원] ${noticeText}`);
     setNoticeSending(false);
     setNoticeText('');
     alert(`발송 완료: ${sent}명 성공${failed > 0 ? `, ${failed}명 실패` : ''}`);
@@ -337,7 +337,7 @@ export default function Home() {
             <textarea
               value={noticeText}
               onChange={e => setNoticeText(e.target.value)}
-              placeholder="내용을 입력하세요. 앞에 [최강학원]이 자동으로 붙습니다."
+              placeholder="내용을 입력하세요. 앞에 [데모학원]이 자동으로 붙습니다."
               rows={3}
               className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
